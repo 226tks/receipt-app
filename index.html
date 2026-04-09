@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>レジ締めアプリ</title>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
+<style>
+body { font-family: sans-serif; margin:0; background:#f2f2f2; }
+
+.header { background:black;color:white;padding:15px;text-align:center; }
+
+.container { padding:15px; }
+
+.card { background:white;padding:15px;border-radius:12px;margin-bottom:15px; }
+
+input { width:100%;padding:10px;margin:5px 0;border-radius:8px;border:1px solid #ccc; }
+
+button { width:100%;padding:15px;font-size:18px;background:black;color:white;border:none; }
+
+.fixed { position:fixed;bottom:0;width:100%; }
+
+.loading {
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,0.6);
+  display:none;justify-content:center;align-items:center;color:white;
+}
+
+.spinner {
+  border:5px solid #ccc;
+  border-top:5px solid white;
+  border-radius:50%;
+  width:40px;height:40px;
+  animation:spin 1s linear infinite;
+}
+
+@keyframes spin { 100% { transform: rotate(360deg); } }
+</style>
+</head>
+
+<body>
+
+<div class="header">レジ締めアプリ</div>
+
+<div class="container">
+
+<input type="file" id="img" accept="image/*" capture="environment">
+
+角度補正
+<input type="range" min="-10" max="10" value="0" id="angle">
+
+<div class="card">
+<h3>1レジ</h3>
+客数<input id="c1">
+売上<input id="t1">
+税<input id="tax1">
+純売上<input id="n1">
+</div>
+
+<div class="card">
+<h3>2レジ</h3>
+客数<input id="c2">
+売上<input id="t2">
+税<input id="tax2">
+純売上<input id="n2">
+</div>
+
+<div class="card" id="result"></div>
+
+</div>
+
+<button class="fixed" onclick="read()">📸 読み取り</button>
+
+<!-- ローディング -->
+<div class="loading" id="loading">
+  <div>
+    <div class="spinner"></div>
+    読み取り中...
+  </div>
+</div>
+
+<!-- 確認画面 -->
+<div class="loading" id="confirm">
+  <div style="background:white;color:black;padding:20px;border-radius:12px;width:90%;">
+    <h3>確認</h3>
+
+    1レジ<br>
+    客数<input id="cc1">
+    売上<input id="tt1">
+    税<input id="taxx1">
+    純売上<input id="nn1"><br>
+
+    2レジ<br>
+    客数<input id="cc2">
+    売上<input id="tt2">
+    税<input id="taxx2">
+    純売上<input id="nn2"><br><br>
+
+    <button onclick="apply()">OK</button>
+    <button onclick="closeConfirm()">キャンセル</button>
+  </div>
+</div>
+
+<script>
+function showLoading(v){ loading.style.display = v ? "flex":"none"; }
+
+async function read(){
+  const file = img.files[0];
+  if(!file) return alert("画像選んで");
+
+  showLoading(true);
+
+  let canvas = await preprocess(file);
+  canvas = rotate(canvas, Number(angle.value));
+  canvas = detect(canvas);
+
+  const [l,r] = split(canvas);
+
+  const r1 = await Tesseract.recognize(l,"jpn");
+  const r2 = await Tesseract.recognize(r,"jpn");
+
+  showLoading(false);
+
+  showConfirm(r1.data.text, r2.data.text);
+}
+
+function showConfirm(t1,t2){
+  cc1.value=find(t1,["客数","人数"]);
+  tt1.value=find(t1,["売上","合計"]);
+  taxx1.value=find(t1,["消費税"]);
+  nn1.value=find(t1,["純売上"]);
+
+  cc2.value=find(t2,["客数"]);
+  tt2.value=find(t2,["売上"]);
+  taxx2.value=find(t2,["消費税"]);
+  nn2.value=find(t2,["純売上"]);
+
+  confirm.style.display="flex";
+}
+
+function apply(){
+  c1.value=cc1.value; t1.value=tt1.value;
+  tax1.value=taxx1.value; n1.value=nn1.value;
+
+  c2.value=cc2.value; t2.value=tt2.value;
+  tax2.value=taxx2.value; n2.value=nn2.value;
+
+  calc();
+  confirm.style.display="none";
+  alert("日報完成！");
+}
+
+function closeConfirm(){ confirm.style.display="none"; }
+
+function calc(){
+  result.innerText =
+    "客数:"+(+c1.value+ +c2.value)+"\n"+
+    "売上:"+(+t1.value+ +t2.value)+"円\n"+
+    "税:"+(+tax1.value+ +tax2.value)+"円\n"+
+    "純売上:"+(+n1.value+ +n2.value)+"円";
+}
+
+function find(t,k){
+  for(let key of k){
+    let m=t.match(new RegExp(key+".*?(\\d+[\\,\\d]*)"));
+    if(m) return m[1].replace(/,/g,"");
+  }
+  return "";
+}
+
+// 画像処理系
+async function preprocess(file){
+  return new Promise(r=>{
+    const img=new Image(), rd=new FileReader();
+    rd.onload=()=>img.src=rd.result;
+    img.onload=()=>{
+      const c=document.createElement("canvas"),ctx=c.getContext("2d");
+      c.width=img.width;c.height=img.height;
+      ctx.drawImage(img,0,0);
+
+      let d=ctx.getImageData(0,0,c.width,c.height);
+      for(let i=0;i<d.data.length;i+=4){
+        let avg=(d.data[i]+d.data[i+1]+d.data[i+2])/3;
+        let v=avg>150?255:0;
+        d.data[i]=d.data[i+1]=d.data[i+2]=v;
+      }
+      ctx.putImageData(d,0,0);
+      r(c);
+    };
+    rd.readAsDataURL(file);
+  });
+}
+
+function rotate(c,a){
+  const n=document.createElement("canvas"),ctx=n.getContext("2d");
+  n.width=c.width;n.height=c.height;
+  ctx.translate(c.width/2,c.height/2);
+  ctx.rotate(a*Math.PI/180);
+  ctx.drawImage(c,-c.width/2,-c.height/2);
+  return n;
+}
+
+function detect(c){
+  const ctx=c.getContext("2d");
+  const d=ctx.getImageData(0,0,c.width,c.height).data;
+
+  let minX=c.width,minY=c.height,maxX=0,maxY=0;
+
+  for(let y=0;y<c.height;y++){
+    for(let x=0;x<c.width;x++){
+      let i=(y*c.width+x)*4;
+      let b=(d[i]+d[i+1]+d[i+2])/3;
+      if(b>200){
+        minX=Math.min(minX,x);
+        minY=Math.min(minY,y);
+        maxX=Math.max(maxX,x);
+        maxY=Math.max(maxY,y);
+      }
+    }
+  }
+
+  let w=maxX-minX,h=maxY-minY;
+  const n=document.createElement("canvas");
+  n.width=w;n.height=h;
+  n.getContext("2d").drawImage(c,minX,minY,w,h,0,0,w,h);
+  return n;
+}
+
+function split(c){
+  const w=c.width,h=c.height;
+  const l=document.createElement("canvas");
+  const r=document.createElement("canvas");
+  l.width=r.width=w/2;l.height=r.height=h;
+  l.getContext("2d").drawImage(c,0,0,w/2,h,0,0,w/2,h);
+  r.getContext("2d").drawImage(c,w/2,0,w/2,h,0,0,w/2,h);
+  return [l,r];
+}
+</script>
+
+</body>
+</html>
