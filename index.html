@@ -25,10 +25,11 @@ button { width:100%;padding:15px;font-size:18px;background:black;color:white;bor
 
 <body>
 
-<div class="header">レジ締めOCRアプリ</div>
+<div class="header">レジ締めOCR</div>
 
 <div class="container">
-<input type="file" id="img" accept="image/*" capture="environment">
+
+<input type="file" id="img" accept="image/*">
 
 <div class="card">
 <h3>1レジ</h3>
@@ -47,6 +48,7 @@ button { width:100%;padding:15px;font-size:18px;background:black;color:white;bor
 </div>
 
 <div class="card" id="result"></div>
+
 </div>
 
 <button class="fixed" onclick="read()">📸 読み取り</button>
@@ -55,18 +57,26 @@ button { width:100%;padding:15px;font-size:18px;background:black;color:white;bor
 
 <script>
 
-// 読み取り
+// ローディング
+function showLoading(v){
+  loading.style.display = v ? "flex":"none";
+}
+
+// メイン処理
 async function read(){
   const file = img.files[0];
-  if(!file) return alert("画像を選択");
+  if(!file) return alert("画像選んで");
 
   try{
     showLoading(true);
 
-    const canvases = await splitAndPreprocess(file);
+    const canvases = await splitImage(file);
 
-    const res1 = await Tesseract.recognize(canvases.left,"jpn");
-    const res2 = await Tesseract.recognize(canvases.right,"jpn");
+    const res1 = await Tesseract.recognize(canvases.left,"eng");
+    const res2 = await Tesseract.recognize(canvases.right,"eng");
+
+    console.log("OCR1:", res1.data.text);
+    console.log("OCR2:", res2.data.text);
 
     applyOCR(res1.data.text, res2.data.text);
 
@@ -78,13 +88,8 @@ async function read(){
   }
 }
 
-// ローディング
-function showLoading(v){
-  loading.style.display = v ? "flex":"none";
-}
-
-// 画像分割＋前処理
-async function splitAndPreprocess(file){
+// 画像分割
+async function splitImage(file){
   return new Promise(resolve=>{
     const img = new Image();
     const rd = new FileReader();
@@ -92,68 +97,89 @@ async function splitAndPreprocess(file){
     rd.onload = ()=> img.src = rd.result;
 
     img.onload = ()=>{
-
       const w = img.width;
       const h = img.height;
 
+      // 左
       const c1 = document.createElement("canvas");
       const ctx1 = c1.getContext("2d");
       c1.width = w/2;
       c1.height = h;
-      ctx1.drawImage(img,0,0,w/2,h,0,0,w/2,h);
-      preprocess(ctx1,c1);
+      ctx1.drawImage(img, 0, 0, w/2, h, 0, 0, w/2, h);
+      preprocess(ctx1, c1);
 
+      // 右
       const c2 = document.createElement("canvas");
       const ctx2 = c2.getContext("2d");
       c2.width = w/2;
       c2.height = h;
-      ctx2.drawImage(img,w/2,0,w/2,h,0,0,w/2,h);
-      preprocess(ctx2,c2);
+      ctx2.drawImage(img, w/2, 0, w/2, h, 0, 0, w/2, h);
+      preprocess(ctx2, c2);
 
-      resolve({left:c1,right:c2});
+      resolve({left:c1, right:c2});
     };
 
     rd.readAsDataURL(file);
   });
 }
 
-// 前処理（二値化）
+// 前処理（自動二値化）
 function preprocess(ctx,canvas){
   const imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
   const data = imgData.data;
 
+  let sum = 0;
+
+  for(let i=0;i<data.length;i+=4){
+    sum += (data[i]+data[i+1]+data[i+2])/3;
+  }
+
+  const avgAll = sum / (data.length/4);
+
   for(let i=0;i<data.length;i+=4){
     const avg = (data[i]+data[i+1]+data[i+2])/3;
-    const val = avg > 150 ? 255 : 0;
+    const val = avg > avgAll ? 255 : 0;
     data[i]=data[i+1]=data[i+2]=val;
   }
 
   ctx.putImageData(imgData,0,0);
 }
 
-// OCR結果適用
-function applyOCR(text1,text2){
+// OCR結果反映
+function applyOCR(text1, text2){
 
-  c1.value = find(text1,["客数","人数"]);
-  t1.value = find(text1,["売上","合計"]);
-  tax1.value = find(text1,["税"]);
+  c1.value = find(text1,["客数","人数","客"]);
+  t1.value = find(text1,["売上","合計","TOTAL"]);
+  tax1.value = find(text1,["消費税","税"]);
   n1.value = find(text1,["純売上","小計"]);
 
-  c2.value = find(text2,["客数","人数"]);
-  t2.value = find(text2,["売上","合計"]);
-  tax2.value = find(text2,["税"]);
+  c2.value = find(text2,["客数","人数","客"]);
+  t2.value = find(text2,["売上","合計","TOTAL"]);
+  tax2.value = find(text2,["消費税","税"]);
   n2.value = find(text2,["純売上","小計"]);
 
   calc();
 }
 
-// 数値抽出
-function find(text,keys){
-  text = text.replace(/\n/g," ");
+// 最強find
+function find(text, keys){
+
+  // 全角→半角
+  text = text.replace(/[０-９]/g, s =>
+    String.fromCharCode(s.charCodeAt(0) - 65248)
+  );
+
+  // 空白削除
+  text = text.replace(/\s+/g,"");
+
   for(let key of keys){
-    let match = text.match(new RegExp(key+"[^0-9]*([0-9,]+)"));
-    if(match) return match[1].replace(/,/g,"");
+    let regex = new RegExp(key + "([0-9]{1,10})");
+    let match = text.match(regex);
+    if(match){
+      return match[1];
+    }
   }
+
   return "";
 }
 
@@ -167,5 +193,6 @@ function calc(){
 }
 
 </script>
+
 </body>
 </html>
