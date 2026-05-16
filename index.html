@@ -1,197 +1,625 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>レジ締めOCRアプリ</title>
-
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
-
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>レジ締め OCR</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
-body { font-family:sans-serif; margin:0; background:#f2f2f2; }
-.header { background:black;color:white;padding:15px;text-align:center; }
-.container { padding:15px; }
-.card { background:white;padding:15px;border-radius:12px;margin-bottom:15px; }
-input { width:100%;padding:10px;margin:5px 0;border-radius:8px;border:1px solid #ccc; }
-button { width:100%;padding:15px;font-size:18px;background:black;color:white;border:none; }
-.fixed { position:fixed;bottom:0;width:100%; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
-.loading {
-  position:fixed;top:0;left:0;width:100%;height:100%;
-  background:rgba(0,0,0,0.6);
-  display:none;justify-content:center;align-items:center;color:white;
-}
+  :root {
+    --bg: #0b0b0c;
+    --surface: #161618;
+    --surface-2: #1d1d20;
+    --line: #2a2a2e;
+    --text: #ececec;
+    --text-dim: #7a7a82;
+    --accent: #d4a574;
+    --accent-dim: #8a6b4b;
+    --success: #6b9080;
+    --warn: #c87f5a;
+    --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic', system-ui, sans-serif;
+  }
+
+  html, body { background: var(--bg); }
+  body {
+    font-family: var(--sans);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.4;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .topbar {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .topbar h1 {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .status {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    padding: 4px 8px;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+  .status.ready    { color: var(--accent);  border-color: var(--accent); }
+  .status.scanning { color: var(--warn);    border-color: var(--warn); }
+  .status.done     { color: var(--success); border-color: var(--success); }
+
+  .cam-wrap {
+    position: relative;
+    background: #000;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+  }
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .no-cam-msg {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    font-size: 12px;
+    padding: 16px;
+    text-align: center;
+    background: var(--surface);
+  }
+  .guides {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .guides svg { width: 100%; height: 100%; }
+
+  .actions {
+    padding: 10px 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+  }
+  .btn {
+    padding: 12px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  .btn:active { background: var(--line); }
+  .btn.primary {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .btn.primary:active { background: var(--accent-dim); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .registers {
+    padding: 16px;
+    display: grid;
+    gap: 12px;
+  }
+  .register {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 14px;
+  }
+  .register h2 {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+  }
+  .register h2 .num {
+    color: var(--accent);
+    font-family: var(--mono);
+    margin-right: 8px;
+  }
+  .field {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 7px;
+  }
+  .field:last-child { margin-bottom: 0; }
+  .field label {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .field input {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 15px;
+    padding: 9px 11px;
+    border-radius: 2px;
+    text-align: right;
+    width: 100%;
+    -moz-appearance: textfield;
+  }
+  .field input::-webkit-outer-spin-button,
+  .field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .field input:focus { outline: none; border-color: var(--accent); }
+  .field input.auto { color: var(--accent); }
+
+  .sum {
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    margin: 0 16px 32px;
+    border-radius: 2px;
+    padding: 16px;
+  }
+  .sum h2 {
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    color: var(--accent);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+  }
+  .sum-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--line);
+  }
+  .sum-row:last-child { border-bottom: none; }
+  .sum-row .label {
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+  .sum-row .val {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .sum-row.highlight .val {
+    color: var(--accent);
+    font-size: 22px;
+  }
+
+  .loading {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(4px);
+  }
+  .loading.on { display: flex; }
+  .loading-inner { text-align: center; }
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 2px solid var(--line);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 14px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-msg {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.12em;
+  }
+
+  input[type=file] { display: none; }
+
+  .note {
+    padding: 0 16px 12px;
+    color: var(--text-dim);
+    font-size: 11px;
+    line-height: 1.5;
+  }
 </style>
 </head>
-
 <body>
 
-<div class="header">レジ締めOCR</div>
-
-<div class="container">
-
-<input type="file" id="img" accept="image/*">
-
-<div class="card">
-<h3>1レジ</h3>
-客数<input id="c1">
-売上<input id="t1">
-税<input id="tax1">
-純売上<input id="n1">
+<div class="topbar">
+  <h1>レジ締め OCR</h1>
+  <div class="status" id="status">準備中</div>
 </div>
 
-<div class="card">
-<h3>2レジ</h3>
-客数<input id="c2">
-売上<input id="t2">
-税<input id="tax2">
-純売上<input id="n2">
+<div class="cam-wrap" id="camwrap">
+  <video id="video" autoplay playsinline muted></video>
+  <div class="guides">
+    <svg viewBox="0 0 100 75" preserveAspectRatio="none">
+      <rect x="3" y="3" width="45" height="69" fill="none" stroke="#d4a574" stroke-width="0.4" stroke-dasharray="2 1"/>
+      <rect x="52" y="3" width="45" height="69" fill="none" stroke="#d4a574" stroke-width="0.4" stroke-dasharray="2 1"/>
+      <text x="25.5" y="40" text-anchor="middle" fill="#d4a574" font-size="3" opacity="0.5">1レジ</text>
+      <text x="74.5" y="40" text-anchor="middle" fill="#d4a574" font-size="3" opacity="0.5">2レジ</text>
+    </svg>
+  </div>
 </div>
 
-<div class="card" id="result"></div>
-
+<div class="actions">
+  <button class="btn primary" id="captureBtn">📸 今すぐ撮影</button>
+  <button class="btn" id="uploadBtn">画像から読み取り</button>
+  <input type="file" id="fileInput" accept="image/*">
 </div>
 
-<button class="fixed" onclick="read()">📸 読み取り</button>
+<p class="note">枠に2つのレジが収まるよう構えて静止すると自動で読み取ります。値はあとから自由に修正できます。</p>
 
-<div class="loading" id="loading">読み取り中...</div>
+<div class="registers">
+  <div class="register">
+    <h2><span class="num">01</span> 1レジ</h2>
+    <div class="field"><label>レシ数</label><input type="number" inputmode="numeric" data-r="1" data-k="rcount"></div>
+    <div class="field"><label>総売上</label><input type="number" inputmode="numeric" data-r="1" data-k="total"></div>
+    <div class="field"><label>消費税</label><input type="number" inputmode="numeric" data-r="1" data-k="tax"></div>
+    <div class="field"><label>純売上</label><input type="number" inputmode="numeric" data-r="1" data-k="net"></div>
+  </div>
+  <div class="register">
+    <h2><span class="num">02</span> 2レジ</h2>
+    <div class="field"><label>レシ数</label><input type="number" inputmode="numeric" data-r="2" data-k="rcount"></div>
+    <div class="field"><label>総売上</label><input type="number" inputmode="numeric" data-r="2" data-k="total"></div>
+    <div class="field"><label>消費税</label><input type="number" inputmode="numeric" data-r="2" data-k="tax"></div>
+    <div class="field"><label>純売上</label><input type="number" inputmode="numeric" data-r="2" data-k="net"></div>
+  </div>
+</div>
+
+<div class="sum">
+  <h2>合計</h2>
+  <div class="sum-row"><span class="label">レシ数</span><span class="val" id="sumC">0</span></div>
+  <div class="sum-row"><span class="label">総売上</span><span class="val" id="sumT">¥0</span></div>
+  <div class="sum-row"><span class="label">消費税</span><span class="val" id="sumTax">¥0</span></div>
+  <div class="sum-row highlight"><span class="label">純売上</span><span class="val" id="sumN">¥0</span></div>
+</div>
+
+<div class="loading" id="loading">
+  <div class="loading-inner">
+    <div class="spinner"></div>
+    <div class="loading-msg" id="loadingMsg">読み取り中</div>
+  </div>
+</div>
 
 <script>
+'use strict';
 
-// ローディング
-function showLoading(v){
-  loading.style.display = v ? "flex":"none";
+const $ = id => document.getElementById(id);
+const video = $('video');
+const statusEl = $('status');
+const loading = $('loading');
+const loadingMsg = $('loadingMsg');
+
+let stream = null;
+let prevFrame = null;
+let stableCount = 0;
+let autoEnabled = true;
+let isProcessing = false;
+let stabilityTimer = null;
+
+const STAB_THRESHOLD = 6;
+const STAB_FRAMES = 8;
+const STAB_INTERVAL = 150;
+const COOLDOWN_MS = 4000;
+
+function setStatus(text, cls) {
+  statusEl.textContent = text;
+  statusEl.className = 'status' + (cls ? ' ' + cls : '');
 }
+function showLoading(msg) {
+  loadingMsg.textContent = msg || '読み取り中';
+  loading.classList.add('on');
+}
+function hideLoading() { loading.classList.remove('on'); }
 
-// メイン処理
-async function read(){
-  const file = img.files[0];
-  if(!file) return alert("画像選んで");
-
-  try{
-    showLoading(true);
-
-    const canvases = await splitImage(file);
-
-    const res1 = await Tesseract.recognize(canvases.left,"eng");
-    const res2 = await Tesseract.recognize(canvases.right,"eng");
-
-    console.log("OCR1:", res1.data.text);
-    console.log("OCR2:", res2.data.text);
-
-    applyOCR(res1.data.text, res2.data.text);
-
-  }catch(e){
-    alert("読み取り失敗");
+async function startCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showCamFallback('お使いのブラウザではカメラが使えません。下のボタンから画像をアップロードしてください。');
+    return;
+  }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1920 },
+        height: { ideal: 1440 }
+      },
+      audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+    setStatus('構えてください', 'ready');
+    startStabilityCheck();
+  } catch (e) {
     console.error(e);
-  }finally{
-    showLoading(false);
+    let msg = 'カメラを使えません。';
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      msg += ' HTTPS環境でアクセスしてください。';
+    } else {
+      msg += ' 設定でカメラを許可するか、画像アップロードをご利用ください。';
+    }
+    showCamFallback(msg);
   }
 }
 
-// 画像分割
-async function splitImage(file){
-  return new Promise(resolve=>{
-    const img = new Image();
-    const rd = new FileReader();
+function showCamFallback(msg) {
+  setStatus('カメラ不可', '');
+  const wrap = $('camwrap');
+  const fallback = document.createElement('div');
+  fallback.className = 'no-cam-msg';
+  fallback.textContent = msg;
+  wrap.appendChild(fallback);
+}
 
-    rd.onload = ()=> img.src = rd.result;
+function startStabilityCheck() {
+  if (stabilityTimer) clearInterval(stabilityTimer);
+  stabilityTimer = setInterval(checkStability, STAB_INTERVAL);
+}
 
-    img.onload = ()=>{
-      const w = img.width;
-      const h = img.height;
+function checkStability() {
+  if (!video.videoWidth || isProcessing || !autoEnabled) return;
 
-      // 左
-      const c1 = document.createElement("canvas");
-      const ctx1 = c1.getContext("2d");
-      c1.width = w/2;
-      c1.height = h;
-      ctx1.drawImage(img, 0, 0, w/2, h, 0, 0, w/2, h);
-      preprocess(ctx1, c1);
+  const c = document.createElement('canvas');
+  c.width = 80; c.height = 60;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(video, 0, 0, 80, 60);
+  const data = ctx.getImageData(0, 0, 80, 60).data;
 
-      // 右
-      const c2 = document.createElement("canvas");
-      const ctx2 = c2.getContext("2d");
-      c2.width = w/2;
-      c2.height = h;
-      ctx2.drawImage(img, w/2, 0, w/2, h, 0, 0, w/2, h);
-      preprocess(ctx2, c2);
+  if (prevFrame) {
+    let diff = 0, bright = 0, samples = 0;
+    for (let i = 0; i < data.length; i += 16) {
+      diff += Math.abs(data[i] - prevFrame[i]);
+      bright += (data[i] + data[i+1] + data[i+2]) / 3;
+      samples++;
+    }
+    diff /= samples;
+    bright /= samples;
 
-      resolve({left:c1, right:c2});
+    if (diff < STAB_THRESHOLD && bright > 40 && bright < 245) {
+      stableCount++;
+      if (stableCount >= STAB_FRAMES) {
+        stableCount = 0;
+        captureFromVideo();
+      } else if (stableCount > STAB_FRAMES / 2) {
+        setStatus('そのまま…', 'scanning');
+      }
+    } else {
+      if (stableCount > 0) setStatus('構えてください', 'ready');
+      stableCount = 0;
+    }
+  }
+  prevFrame = data;
+}
+
+async function captureFromVideo() {
+  if (isProcessing || !video.videoWidth) return;
+  isProcessing = true;
+  autoEnabled = false;
+  setStatus('読み取り中', 'scanning');
+  showLoading('画像を読み取り中…');
+
+  const c = document.createElement('canvas');
+  c.width = video.videoWidth;
+  c.height = video.videoHeight;
+  c.getContext('2d').drawImage(video, 0, 0);
+
+  try {
+    await processCanvas(c);
+    setStatus('完了 / 修正可', 'done');
+  } catch (e) {
+    console.error(e);
+    setStatus('失敗', '');
+  } finally {
+    hideLoading();
+    isProcessing = false;
+    setTimeout(() => { autoEnabled = true; stableCount = 0; }, COOLDOWN_MS);
+  }
+}
+
+async function captureFromFile(file) {
+  if (isProcessing) return;
+  isProcessing = true;
+  showLoading('画像を読み取り中…');
+  setStatus('読み取り中', 'scanning');
+  try {
+    const img = await loadImage(file);
+    const c = document.createElement('canvas');
+    c.width = img.width;
+    c.height = img.height;
+    c.getContext('2d').drawImage(img, 0, 0);
+    await processCanvas(c);
+    setStatus('完了 / 修正可', 'done');
+  } catch (e) {
+    console.error(e);
+    setStatus('失敗', '');
+    alert('読み取りに失敗しました');
+  } finally {
+    hideLoading();
+    isProcessing = false;
+  }
+}
+
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = r.result;
     };
-
-    rd.readAsDataURL(file);
+    r.onerror = reject;
+    r.readAsDataURL(file);
   });
 }
 
-// 前処理（自動二値化）
-function preprocess(ctx,canvas){
-  const imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
-  const data = imgData.data;
+async function processCanvas(canvas) {
+  const w = canvas.width, h = canvas.height;
+  const left = sliceCanvas(canvas, 0, 0, Math.floor(w / 2), h);
+  const right = sliceCanvas(canvas, Math.floor(w / 2), 0, Math.ceil(w / 2), h);
 
+  preprocess(left);
+  preprocess(right);
+
+  loadingMsg.textContent = '1レジを読み取り中…';
+  const r1 = await Tesseract.recognize(left, 'jpn+eng');
+  loadingMsg.textContent = '2レジを読み取り中…';
+  const r2 = await Tesseract.recognize(right, 'jpn+eng');
+
+  console.log('--- LEFT ---\n' + r1.data.text);
+  console.log('--- RIGHT ---\n' + r2.data.text);
+
+  fillFields(1, extractFields(r1.data.text));
+  fillFields(2, extractFields(r2.data.text));
+  recalc();
+}
+
+function sliceCanvas(src, sx, sy, sw, sh) {
+  const c = document.createElement('canvas');
+  c.width = sw;
+  c.height = sh;
+  c.getContext('2d').drawImage(src, sx, sy, sw, sh, 0, 0, sw, sh);
+  return c;
+}
+
+function preprocess(canvas) {
+  const ctx = canvas.getContext('2d');
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const d = img.data;
   let sum = 0;
-
-  for(let i=0;i<data.length;i+=4){
-    sum += (data[i]+data[i+1]+data[i+2])/3;
+  for (let i = 0; i < d.length; i += 4) {
+    sum += (d[i] + d[i+1] + d[i+2]) / 3;
   }
-
-  const avgAll = sum / (data.length/4);
-
-  for(let i=0;i<data.length;i+=4){
-    const avg = (data[i]+data[i+1]+data[i+2])/3;
-    const val = avg > avgAll ? 255 : 0;
-    data[i]=data[i+1]=data[i+2]=val;
+  const mean = sum / (d.length / 4);
+  const thresh = mean * 0.88;
+  for (let i = 0; i < d.length; i += 4) {
+    const v = (d[i] + d[i+1] + d[i+2]) / 3;
+    const out = v > thresh ? 255 : 0;
+    d[i] = d[i+1] = d[i+2] = out;
   }
-
-  ctx.putImageData(imgData,0,0);
+  ctx.putImageData(img, 0, 0);
 }
 
-// OCR結果反映
-function applyOCR(text1, text2){
-
-  c1.value = find(text1,["客数","人数","客"]);
-  t1.value = find(text1,["売上","合計","TOTAL"]);
-  tax1.value = find(text1,["消費税","税"]);
-  n1.value = find(text1,["純売上","小計"]);
-
-  c2.value = find(text2,["客数","人数","客"]);
-  t2.value = find(text2,["売上","合計","TOTAL"]);
-  tax2.value = find(text2,["消費税","税"]);
-  n2.value = find(text2,["純売上","小計"]);
-
-  calc();
+function normalize(s) {
+  return s
+    .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[，、]/g, ',');
 }
 
-// 最強find
-function find(text, keys){
+function yenAmount(line) {
+  const cleaned = line.replace(/,/g, '');
+  const m = cleaned.match(/[¥Y￥]\s*(\d+)/);
+  if (m) return m[1];
+  const nums = (cleaned.match(/\d+/g) || []).map(Number);
+  if (!nums.length) return '';
+  return Math.max(...nums).toString();
+}
 
-  // 全角→半角
-  text = text.replace(/[０-９]/g, s =>
-    String.fromCharCode(s.charCodeAt(0) - 65248)
-  );
+function extractFields(text) {
+  const lines = normalize(text).split(/\r?\n/);
+  const result = { rcount: '', total: '', tax: '', net: '' };
 
-  // 空白削除
-  text = text.replace(/\s+/g,"");
-
-  for(let key of keys){
-    let regex = new RegExp(key + "([0-9]{1,10})");
-    let match = text.match(regex);
-    if(match){
-      return match[1];
+  for (const line of lines) {
+    if (!result.rcount && /\d[\d,]*\s*枚/.test(line)) {
+      const m = line.replace(/,/g, '').match(/(\d+)\s*枚/);
+      if (m) result.rcount = m[1];
+    }
+    if (!result.net && /純/.test(line)) {
+      const v = yenAmount(line);
+      if (v) result.net = v;
+    }
+    if (!result.tax && /消費|費税|消.{0,2}税/.test(line)) {
+      const v = yenAmount(line);
+      if (v) result.tax = v;
+    }
+    if (!result.total && /総/.test(line) && !/純/.test(line)) {
+      const v = yenAmount(line);
+      if (v) result.total = v;
     }
   }
 
-  return "";
+  return result;
 }
 
-// 合計
-function calc(){
-  result.innerText =
-    "客数:"+(+c1.value+ +c2.value)+"\n"+
-    "売上:"+(+t1.value+ +t2.value)+"円\n"+
-    "税:"+(+tax1.value+ +tax2.value)+"円\n"+
-    "純売上:"+(+n1.value+ +n2.value)+"円";
+function fillFields(register, vals) {
+  for (const key of ['rcount', 'total', 'tax', 'net']) {
+    const el = document.querySelector(`input[data-r="${register}"][data-k="${key}"]`);
+    if (!el) continue;
+    if (vals[key]) {
+      el.value = vals[key];
+      el.classList.add('auto');
+    }
+  }
 }
 
+function recalc() {
+  const get = (r, k) => {
+    const v = document.querySelector(`input[data-r="${r}"][data-k="${k}"]`).value;
+    return parseFloat(v) || 0;
+  };
+  const sums = {
+    rcount: get(1,'rcount') + get(2,'rcount'),
+    total:  get(1,'total')  + get(2,'total'),
+    tax:    get(1,'tax')    + get(2,'tax'),
+    net:    get(1,'net')    + get(2,'net'),
+  };
+  const yen = n => '¥' + Math.round(n).toLocaleString();
+  $('sumC').textContent  = sums.rcount.toLocaleString();
+  $('sumT').textContent  = yen(sums.total);
+  $('sumTax').textContent = yen(sums.tax);
+  $('sumN').textContent  = yen(sums.net);
+}
+
+document.querySelectorAll('input[type=number]').forEach(el => {
+  el.addEventListener('input', () => {
+    el.classList.remove('auto');
+    recalc();
+  });
+});
+
+$('captureBtn').addEventListener('click', () => {
+  if (video.srcObject) captureFromVideo();
+  else $('fileInput').click();
+});
+$('uploadBtn').addEventListener('click', () => $('fileInput').click());
+$('fileInput').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (f) captureFromFile(f);
+});
+
+startCamera();
+recalc();
 </script>
 
 </body>
