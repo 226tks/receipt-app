@@ -2,315 +2,440 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>レジ締め OCR</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>レジ締めOCR</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg: #0b0b0c;
-    --surface: #161618;
-    --surface-2: #1d1d20;
-    --line: #2a2a2e;
-    --text: #ececec;
-    --text-dim: #7a7a82;
-    --accent: #d4a574;
-    --accent-dim: #8a6b4b;
-    --success: #6b9080;
-    --warn: #c87f5a;
-    --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic', system-ui, sans-serif;
+    --bg:        #ffffff;
+    --surface-2: #f5f5f5;
+    --line:      #d4d4d4;
+    --ink:       #0a0a0a;
+    --ink-2:     #404040;
+    --ink-dim:   #737373;
+    --warn:      #b45309;
+    --warn-bg:   #fef3c7;
+    --warn-line: #f59e0b;
+    --ok-bg:     #ecfdf5;
+    --ok-line:   #10b981;
+    --ok:        #065f46;
+
+    --sans: -apple-system, BlinkMacSystemFont, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic UI', 'Yu Gothic', system-ui, sans-serif;
+    --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+    --radius: 4px;
+    --tap:    48px;
   }
 
-  html, body { background: var(--bg); }
+  html { -webkit-text-size-adjust: 100%; }
   body {
+    background: var(--bg);
+    color: var(--ink);
     font-family: var(--sans);
-    color: var(--text);
+    font-size: 16px;
+    line-height: 1.5;
     min-height: 100vh;
-    font-size: 14px;
-    line-height: 1.4;
     -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
   }
 
   .topbar {
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--line);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: var(--surface);
-    position: sticky;
-    top: 0;
-    z-index: 10;
+    padding: 14px 20px;
+    border-bottom: 2px solid var(--ink);
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+    background: var(--bg);
+    position: sticky; top: 0; z-index: 10;
   }
-  .topbar h1 {
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-  }
+  .topbar h1 { font-size: 17px; font-weight: 700; }
   .status {
-    font-family: var(--mono);
-    font-size: 10px;
-    color: var(--text-dim);
-    padding: 4px 8px;
-    border: 1px solid var(--line);
-    border-radius: 2px;
-    letter-spacing: 0.05em;
-    white-space: nowrap;
+    font-size: 13px; font-weight: 600;
+    padding: 6px 12px;
+    border: 1.5px solid var(--ink);
+    border-radius: var(--radius);
+    white-space: nowrap; min-width: 92px; text-align: center;
   }
-  .status.ready    { color: var(--accent);  border-color: var(--accent); }
-  .status.scanning { color: var(--warn);    border-color: var(--warn); }
-  .status.done     { color: var(--success); border-color: var(--success); }
+  .status.scanning { background: var(--ink); color: #fff; animation: pulse 1.2s ease-in-out infinite; }
+  .status.done     { background: var(--ink); color: #fff; }
+  @keyframes pulse { 0%,100% {opacity:1;} 50% {opacity:0.6;} }
 
   .cam-wrap {
-    position: relative;
-    background: #000;
-    aspect-ratio: 4 / 3;
-    overflow: hidden;
+    position: relative; background: #000;
+    aspect-ratio: 4 / 3; overflow: hidden;
+    border-bottom: 1px solid var(--line);
   }
-  video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
+  video { width: 100%; height: 100%; object-fit: cover; display: block; }
   .no-cam-msg {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-dim);
-    font-size: 12px;
-    padding: 16px;
-    text-align: center;
-    background: var(--surface);
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-2); background: var(--surface-2);
+    font-size: 15px; padding: 24px; text-align: center; line-height: 1.6;
   }
-  .guides {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-  }
+  .guides { position: absolute; inset: 0; pointer-events: none; }
   .guides svg { width: 100%; height: 100%; }
 
   .actions {
-    padding: 10px 16px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--line);
+    padding: 16px 20px 8px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
   }
   .btn {
-    padding: 12px;
-    border: 1px solid var(--line);
-    background: var(--surface-2);
-    color: var(--text);
+    min-height: var(--tap);
+    padding: 12px 16px;
+    border: 1.5px solid var(--ink);
+    background: var(--bg);
+    color: var(--ink);
     font-family: var(--sans);
-    font-size: 13px;
-    font-weight: 500;
-    border-radius: 2px;
+    font-size: 16px; font-weight: 600;
+    border-radius: var(--radius);
     cursor: pointer;
-    transition: 0.15s;
+    transition: transform 0.05s ease, background-color 0.15s ease;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   }
-  .btn:active { background: var(--line); }
-  .btn.primary {
-    background: var(--accent);
-    color: #000;
-    border-color: var(--accent);
-    font-weight: 600;
-  }
-  .btn.primary:active { background: var(--accent-dim); }
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  .btn.primary { background: var(--ink); color: #fff; }
+  .btn.primary:active { background: #2a2a2a; }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+  .note {
+    padding: 8px 20px 12px;
+    color: var(--ink-2); font-size: 13px; line-height: 1.6;
+  }
+
   .registers {
-    padding: 16px;
-    display: grid;
-    gap: 12px;
+    padding: 0 20px 12px;
+    display: grid; gap: 14px;
   }
   .register {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 2px;
-    padding: 14px;
+    background: var(--bg);
+    border: 1.5px solid var(--ink);
+    border-radius: var(--radius);
+    padding: 18px;
   }
   .register h2 {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.22em;
-    color: var(--text-dim);
-    margin-bottom: 12px;
-    text-transform: uppercase;
+    font-size: 15px; font-weight: 700;
+    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
   }
   .register h2 .num {
-    color: var(--accent);
-    font-family: var(--mono);
-    margin-right: 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px;
+    background: var(--ink); color: #fff;
+    border-radius: 2px;
+    font-family: var(--mono); font-size: 13px; font-weight: 700;
   }
+  .register h2 .check {
+    margin-left: auto;
+    font-size: 12px; font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 2px;
+  }
+  .register h2 .check.ok   { background: var(--ok-bg);   color: var(--ok);   border: 1px solid var(--ok-line); }
+  .register h2 .check.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
+  .register h2 .check[hidden] { display: none; }
+
   .field {
-    display: grid;
-    grid-template-columns: 72px 1fr;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 7px;
+    display: grid; grid-template-columns: 90px 1fr;
+    align-items: center; gap: 12px;
+    margin-bottom: 10px;
   }
   .field:last-child { margin-bottom: 0; }
-  .field label {
-    font-size: 12px;
-    color: var(--text-dim);
-  }
+  .field label { font-size: 15px; font-weight: 500; color: var(--ink-2); }
   .field input {
     background: var(--bg);
-    border: 1px solid var(--line);
-    color: var(--text);
+    border: 1.5px solid var(--line);
+    color: var(--ink);
     font-family: var(--mono);
-    font-size: 15px;
-    padding: 9px 11px;
-    border-radius: 2px;
-    text-align: right;
-    width: 100%;
+    font-size: 18px; font-weight: 600;
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    text-align: right; width: 100%;
     -moz-appearance: textfield;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
   .field input::-webkit-outer-spin-button,
   .field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-  .field input:focus { outline: none; border-color: var(--accent); }
-  .field input.auto { color: var(--accent); }
+  .field input:focus {
+    outline: none;
+    border-color: var(--ink);
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.08);
+  }
+  .field input.auto { background: var(--surface-2); border-color: var(--ink); }
+
+  .warning {
+    margin: 0 20px 16px;
+    padding: 12px 14px;
+    background: var(--warn-bg);
+    border: 1.5px solid var(--warn-line);
+    border-radius: var(--radius);
+    color: var(--warn);
+    font-size: 13px; font-weight: 600; line-height: 1.5;
+  }
+  .warning[hidden] { display: none; }
 
   .sum {
-    background: var(--surface);
-    border: 1px solid var(--accent);
-    margin: 0 16px 32px;
-    border-radius: 2px;
-    padding: 16px;
+    background: var(--ink); color: #fff;
+    margin: 0 20px 16px;
+    border-radius: var(--radius);
+    padding: 20px;
   }
   .sum h2 {
-    font-size: 10px;
-    letter-spacing: 0.22em;
-    color: var(--accent);
-    margin-bottom: 12px;
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.2em;
+    margin-bottom: 14px;
     text-transform: uppercase;
+    opacity: 0.7;
   }
   .sum-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    padding: 8px 0;
-    border-bottom: 1px dashed var(--line);
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
   }
   .sum-row:last-child { border-bottom: none; }
-  .sum-row .label {
-    color: var(--text-dim);
-    font-size: 13px;
+  .sum-row .label { font-size: 15px; color: rgba(255,255,255,0.75); font-weight: 500; }
+  .sum-row .val   { font-family: var(--mono); font-size: 20px; font-weight: 700; }
+  .sum-row.highlight {
+    margin-top: 6px; padding-top: 14px;
+    border-top: 2px solid rgba(255,255,255,0.4);
   }
-  .sum-row .val {
-    font-family: var(--mono);
-    font-size: 18px;
-    font-weight: 600;
+  .sum-row.highlight .label { color: #fff; font-size: 16px; font-weight: 700; }
+  .sum-row.highlight .val { font-size: 28px; }
+
+  .record-bar {
+    padding: 0 20px 16px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
   }
-  .sum-row.highlight .val {
-    color: var(--accent);
-    font-size: 22px;
+  .reset-bar {
+    padding: 0 20px 32px;
+    display: flex; justify-content: center;
+  }
+  .btn-text {
+    background: none; border: none;
+    color: var(--ink-2);
+    font-size: 14px;
+    font-family: var(--sans);
+    padding: 12px 16px;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .btn-text:focus-visible {
+    outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 2px;
+  }
+
+  .modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: none; align-items: flex-end;
+    z-index: 50;
+  }
+  .modal.on { display: flex; }
+  .modal-panel {
+    width: 100%;
+    max-height: 85vh;
+    background: var(--bg);
+    border-top-left-radius: 12px; border-top-right-radius: 12px;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  @media (min-width: 640px) {
+    .modal { align-items: center; justify-content: center; }
+    .modal-panel { max-width: 640px; border-radius: 12px; max-height: 80vh; }
+  }
+  .modal-head {
+    padding: 16px 20px;
+    border-bottom: 2px solid var(--ink);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-head h2 { font-size: 17px; font-weight: 700; }
+  .modal-close {
+    background: none; border: none;
+    font-size: 24px; cursor: pointer; padding: 4px 8px;
+    color: var(--ink);
+  }
+  .history-list {
+    overflow-y: auto; flex: 1;
+    padding: 8px 0;
+  }
+  .history-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--ink-dim);
+    font-size: 14px;
+  }
+  .history-item {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .history-item .date { flex: 1; font-size: 14px; font-weight: 600; }
+  .history-item .date .sub {
+    font-size: 12px; color: var(--ink-dim); font-weight: 400; margin-top: 2px;
+  }
+  .history-item .amount {
+    font-family: var(--mono); font-size: 16px; font-weight: 700;
+  }
+  .history-item .del {
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 6px 10px; font-size: 12px;
+    cursor: pointer;
+    color: var(--ink-2);
+  }
+  .modal-foot {
+    padding: 12px 20px;
+    border-top: 1px solid var(--line);
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    background: var(--surface-2);
   }
 
   .loading {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.85);
-    display: none;
-    align-items: center;
-    justify-content: center;
+    position: fixed; inset: 0;
+    background: rgba(255,255,255,0.92);
+    display: none; align-items: center; justify-content: center;
     z-index: 100;
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(2px);
   }
   .loading.on { display: flex; }
-  .loading-inner { text-align: center; }
+  .loading-inner { text-align: center; padding: 24px; }
   .spinner {
-    width: 40px;
-    height: 40px;
-    border: 2px solid var(--line);
-    border-top-color: var(--accent);
+    width: 44px; height: 44px;
+    border: 3px solid var(--line);
+    border-top-color: var(--ink);
     border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin: 0 auto 14px;
+    animation: spin 0.7s linear infinite;
+    margin: 0 auto 16px;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-msg {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--text-dim);
-    letter-spacing: 0.12em;
+  .loading-msg { font-size: 14px; font-weight: 600; color: var(--ink); }
+
+  .toast {
+    position: fixed;
+    bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--ink); color: #fff;
+    padding: 12px 20px;
+    border-radius: 4px;
+    font-size: 14px; font-weight: 600;
+    z-index: 200;
+    opacity: 0;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+    pointer-events: none;
+    max-width: 90vw; text-align: center;
+  }
+  .toast.on {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
   }
 
   input[type=file] { display: none; }
 
-  .note {
-    padding: 0 16px 12px;
-    color: var(--text-dim);
-    font-size: 11px;
-    line-height: 1.5;
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   }
 </style>
 </head>
 <body>
 
-<div class="topbar">
-  <h1>レジ締め OCR</h1>
-  <div class="status" id="status">準備中</div>
-</div>
+<header class="topbar">
+  <h1>レジ締めOCR</h1>
+  <div class="status" id="status" role="status" aria-live="polite">準備中</div>
+</header>
 
 <div class="cam-wrap" id="camwrap">
-  <video id="video" autoplay playsinline muted></video>
-  <div class="guides">
+  <video id="video" autoplay playsinline muted aria-label="カメラ映像"></video>
+  <div class="guides" aria-hidden="true">
     <svg viewBox="0 0 100 75" preserveAspectRatio="none">
-      <rect x="3" y="3" width="45" height="69" fill="none" stroke="#d4a574" stroke-width="0.4" stroke-dasharray="2 1"/>
-      <rect x="52" y="3" width="45" height="69" fill="none" stroke="#d4a574" stroke-width="0.4" stroke-dasharray="2 1"/>
-      <text x="25.5" y="40" text-anchor="middle" fill="#d4a574" font-size="3" opacity="0.5">1レジ</text>
-      <text x="74.5" y="40" text-anchor="middle" fill="#d4a574" font-size="3" opacity="0.5">2レジ</text>
+      <rect x="3"  y="3" width="45" height="69" fill="none" stroke="#fff" stroke-width="0.5" stroke-dasharray="2 1.2" opacity="0.9"/>
+      <rect x="52" y="3" width="45" height="69" fill="none" stroke="#fff" stroke-width="0.5" stroke-dasharray="2 1.2" opacity="0.9"/>
+      <text x="25.5" y="40" text-anchor="middle" fill="#fff" font-size="3.5" opacity="0.85" font-weight="700">1レジ</text>
+      <text x="74.5" y="40" text-anchor="middle" fill="#fff" font-size="3.5" opacity="0.85" font-weight="700">2レジ</text>
     </svg>
   </div>
 </div>
 
 <div class="actions">
-  <button class="btn primary" id="captureBtn">📸 今すぐ撮影</button>
-  <button class="btn" id="uploadBtn">画像から読み取り</button>
+  <button class="btn primary" id="captureBtn" type="button">
+    <span aria-hidden="true">●</span><span>今すぐ撮影</span>
+  </button>
+  <button class="btn" id="uploadBtn" type="button">
+    <span aria-hidden="true">▤</span><span>画像から読み取り</span>
+  </button>
   <input type="file" id="fileInput" accept="image/*">
 </div>
 
-<p class="note">枠に2つのレジが収まるよう構えて静止すると自動で読み取ります。値はあとから自由に修正できます。</p>
+<p class="note">2枚のレシートを間に隙間を空けて並べ、枠に収まるよう撮影してください。読み取った値は各欄をタップして修正できます。</p>
 
-<div class="registers">
+<section class="registers" aria-label="読み取り結果">
   <div class="register">
-    <h2><span class="num">01</span> 1レジ</h2>
-    <div class="field"><label>レシ数</label><input type="number" inputmode="numeric" data-r="1" data-k="rcount"></div>
-    <div class="field"><label>総売上</label><input type="number" inputmode="numeric" data-r="1" data-k="total"></div>
-    <div class="field"><label>消費税</label><input type="number" inputmode="numeric" data-r="1" data-k="tax"></div>
-    <div class="field"><label>純売上</label><input type="number" inputmode="numeric" data-r="1" data-k="net"></div>
+    <h2>
+      <span class="num">1</span> 1レジ
+      <span class="check" id="check-1" hidden></span>
+    </h2>
+    <div class="field"><label for="r1-rcount">レシ数</label><input id="r1-rcount" type="number" inputmode="numeric" data-r="1" data-k="rcount"></div>
+    <div class="field"><label for="r1-total">総売上</label><input id="r1-total"  type="number" inputmode="numeric" data-r="1" data-k="total"></div>
+    <div class="field"><label for="r1-tax">消費税</label><input id="r1-tax"    type="number" inputmode="numeric" data-r="1" data-k="tax"></div>
+    <div class="field"><label for="r1-net">純売上</label><input id="r1-net"    type="number" inputmode="numeric" data-r="1" data-k="net"></div>
   </div>
-  <div class="register">
-    <h2><span class="num">02</span> 2レジ</h2>
-    <div class="field"><label>レシ数</label><input type="number" inputmode="numeric" data-r="2" data-k="rcount"></div>
-    <div class="field"><label>総売上</label><input type="number" inputmode="numeric" data-r="2" data-k="total"></div>
-    <div class="field"><label>消費税</label><input type="number" inputmode="numeric" data-r="2" data-k="tax"></div>
-    <div class="field"><label>純売上</label><input type="number" inputmode="numeric" data-r="2" data-k="net"></div>
-  </div>
-</div>
 
-<div class="sum">
+  <div class="register">
+    <h2>
+      <span class="num">2</span> 2レジ
+      <span class="check" id="check-2" hidden></span>
+    </h2>
+    <div class="field"><label for="r2-rcount">レシ数</label><input id="r2-rcount" type="number" inputmode="numeric" data-r="2" data-k="rcount"></div>
+    <div class="field"><label for="r2-total">総売上</label><input id="r2-total"  type="number" inputmode="numeric" data-r="2" data-k="total"></div>
+    <div class="field"><label for="r2-tax">消費税</label><input id="r2-tax"    type="number" inputmode="numeric" data-r="2" data-k="tax"></div>
+    <div class="field"><label for="r2-net">純売上</label><input id="r2-net"    type="number" inputmode="numeric" data-r="2" data-k="net"></div>
+  </div>
+</section>
+
+<div class="warning" id="warning" hidden role="alert"></div>
+
+<section class="sum" aria-label="合計">
   <h2>合計</h2>
   <div class="sum-row"><span class="label">レシ数</span><span class="val" id="sumC">0</span></div>
   <div class="sum-row"><span class="label">総売上</span><span class="val" id="sumT">¥0</span></div>
   <div class="sum-row"><span class="label">消費税</span><span class="val" id="sumTax">¥0</span></div>
-  <div class="sum-row highlight"><span class="label">純売上</span><span class="val" id="sumN">¥0</span></div>
+  <div class="sum-row highlight"><span class="label">純売上合計</span><span class="val" id="sumN">¥0</span></div>
+</section>
+
+<div class="record-bar">
+  <button class="btn primary" id="saveBtn" type="button">📝 履歴に保存</button>
+  <button class="btn" id="historyBtn" type="button">📂 履歴を見る</button>
 </div>
 
-<div class="loading" id="loading">
+<div class="reset-bar">
+  <button class="btn-text" id="resetBtn" type="button">すべての値をクリア</button>
+</div>
+
+<div class="modal" id="historyModal" role="dialog" aria-modal="true" aria-labelledby="history-title">
+  <div class="modal-panel">
+    <div class="modal-head">
+      <h2 id="history-title">履歴</h2>
+      <button class="modal-close" id="historyClose" aria-label="閉じる">×</button>
+    </div>
+    <div class="history-list" id="historyList"></div>
+    <div class="modal-foot">
+      <button class="btn" id="exportBtn" type="button">📥 CSVをダウンロード</button>
+      <button class="btn" id="clearHistoryBtn" type="button">履歴をすべて削除</button>
+    </div>
+  </div>
+</div>
+
+<div class="loading" id="loading" role="alert" aria-live="assertive">
   <div class="loading-inner">
-    <div class="spinner"></div>
+    <div class="spinner" aria-hidden="true"></div>
     <div class="loading-msg" id="loadingMsg">読み取り中</div>
   </div>
 </div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 'use strict';
@@ -320,6 +445,8 @@ const video = $('video');
 const statusEl = $('status');
 const loading = $('loading');
 const loadingMsg = $('loadingMsg');
+const warningEl = $('warning');
+const toastEl = $('toast');
 
 let stream = null;
 let prevFrame = null;
@@ -329,9 +456,10 @@ let isProcessing = false;
 let stabilityTimer = null;
 
 const STAB_THRESHOLD = 6;
-const STAB_FRAMES = 8;
-const STAB_INTERVAL = 150;
-const COOLDOWN_MS = 4000;
+const STAB_FRAMES    = 8;
+const STAB_INTERVAL  = 150;
+const COOLDOWN_MS    = 4000;
+const STORAGE_KEY    = 'register-ocr-history-v1';
 
 function setStatus(text, cls) {
   statusEl.textContent = text;
@@ -343,23 +471,42 @@ function showLoading(msg) {
 }
 function hideLoading() { loading.classList.remove('on'); }
 
+let toastTimer = null;
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('on'), 2200);
+}
+
+let workerPromise = null;
+function getWorker() {
+  if (!workerPromise) {
+    workerPromise = (async () => {
+      const w = await Tesseract.createWorker(['jpn', 'eng']);
+      return w;
+    })();
+  }
+  return workerPromise;
+}
+
 async function startCamera() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    showCamFallback('お使いのブラウザではカメラが使えません。下のボタンから画像をアップロードしてください。');
+    showCamFallback('お使いのブラウザではカメラが使えません。画像アップロードをご利用ください。');
     return;
   }
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: { ideal: 'environment' },
-        width: { ideal: 1920 },
+        width:  { ideal: 1920 },
         height: { ideal: 1440 }
       },
       audio: false
     });
     video.srcObject = stream;
     await video.play();
-    setStatus('構えてください', 'ready');
+    setStatus('構えてください');
     startStabilityCheck();
   } catch (e) {
     console.error(e);
@@ -374,7 +521,7 @@ async function startCamera() {
 }
 
 function showCamFallback(msg) {
-  setStatus('カメラ不可', '');
+  setStatus('カメラ不可');
   const wrap = $('camwrap');
   const fallback = document.createElement('div');
   fallback.className = 'no-cam-msg';
@@ -415,7 +562,7 @@ function checkStability() {
         setStatus('そのまま…', 'scanning');
       }
     } else {
-      if (stableCount > 0) setStatus('構えてください', 'ready');
+      if (stableCount > 0) setStatus('構えてください');
       stableCount = 0;
     }
   }
@@ -437,9 +584,11 @@ async function captureFromVideo() {
   try {
     await processCanvas(c);
     setStatus('完了 / 修正可', 'done');
+    if (navigator.vibrate) navigator.vibrate(40);
   } catch (e) {
     console.error(e);
-    setStatus('失敗', '');
+    setStatus('失敗');
+    toast('読み取りに失敗しました');
   } finally {
     hideLoading();
     isProcessing = false;
@@ -462,8 +611,8 @@ async function captureFromFile(file) {
     setStatus('完了 / 修正可', 'done');
   } catch (e) {
     console.error(e);
-    setStatus('失敗', '');
-    alert('読み取りに失敗しました');
+    setStatus('失敗');
+    toast('読み取りに失敗しました');
   } finally {
     hideLoading();
     isProcessing = false;
@@ -484,18 +633,64 @@ function loadImage(file) {
   });
 }
 
+function findReceiptGap(canvas) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const img = ctx.getImageData(0, 0, w, h);
+  const d = img.data;
+
+  const DARK = 110;
+  const colDark = new Array(w).fill(0);
+  for (let y = 0; y < h; y += 3) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const v = (d[i] + d[i+1] + d[i+2]) / 3;
+      if (v < DARK) colDark[x]++;
+    }
+  }
+
+  const window = Math.max(10, Math.floor(w / 50));
+  const smoothed = new Array(w);
+  for (let x = 0; x < w; x++) {
+    let sum = 0, cnt = 0;
+    for (let i = Math.max(0, x - window); i <= Math.min(w - 1, x + window); i++) {
+      sum += colDark[i]; cnt++;
+    }
+    smoothed[x] = sum / cnt;
+  }
+
+  const start = Math.floor(w * 0.30);
+  const end   = Math.floor(w * 0.70);
+  let minDark = Infinity, minX = Math.floor(w / 2);
+  for (let x = start; x < end; x++) {
+    if (smoothed[x] < minDark) { minDark = smoothed[x]; minX = x; }
+  }
+
+  let avgDark = 0;
+  for (let x = start; x < end; x++) avgDark += smoothed[x];
+  avgDark /= (end - start);
+
+  if (avgDark > 1 && minDark < avgDark * 0.4) return minX;
+  return Math.floor(w / 2);
+}
+
 async function processCanvas(canvas) {
   const w = canvas.width, h = canvas.height;
-  const left = sliceCanvas(canvas, 0, 0, Math.floor(w / 2), h);
-  const right = sliceCanvas(canvas, Math.floor(w / 2), 0, Math.ceil(w / 2), h);
+  const gapX = findReceiptGap(canvas);
+  console.log('Gap detected at x =', gapX, '/', w);
+
+  const left  = sliceCanvas(canvas, 0,    0, gapX,     h);
+  const right = sliceCanvas(canvas, gapX, 0, w - gapX, h);
 
   preprocess(left);
   preprocess(right);
 
+  const worker = await getWorker();
+
   loadingMsg.textContent = '1レジを読み取り中…';
-  const r1 = await Tesseract.recognize(left, 'jpn+eng');
+  const r1 = await worker.recognize(left);
   loadingMsg.textContent = '2レジを読み取り中…';
-  const r2 = await Tesseract.recognize(right, 'jpn+eng');
+  const r2 = await worker.recognize(right);
 
   console.log('--- LEFT ---\n' + r1.data.text);
   console.log('--- RIGHT ---\n' + r2.data.text);
@@ -503,12 +698,12 @@ async function processCanvas(canvas) {
   fillFields(1, extractFields(r1.data.text));
   fillFields(2, extractFields(r2.data.text));
   recalc();
+  validate();
 }
 
 function sliceCanvas(src, sx, sy, sw, sh) {
   const c = document.createElement('canvas');
-  c.width = sw;
-  c.height = sh;
+  c.width = sw; c.height = sh;
   c.getContext('2d').drawImage(src, sx, sy, sw, sh, 0, 0, sw, sh);
   return c;
 }
@@ -517,16 +712,29 @@ function preprocess(canvas) {
   const ctx = canvas.getContext('2d');
   const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const d = img.data;
-  let sum = 0;
-  for (let i = 0; i < d.length; i += 4) {
-    sum += (d[i] + d[i+1] + d[i+2]) / 3;
-  }
-  const mean = sum / (d.length / 4);
-  const thresh = mean * 0.88;
-  for (let i = 0; i < d.length; i += 4) {
+
+  const gray = new Float32Array(d.length / 4);
+  let minV = 255, maxV = 0;
+  for (let i = 0, j = 0; i < d.length; i += 4, j++) {
     const v = (d[i] + d[i+1] + d[i+2]) / 3;
-    const out = v > thresh ? 255 : 0;
-    d[i] = d[i+1] = d[i+2] = out;
+    gray[j] = v;
+    if (v < minV) minV = v;
+    if (v > maxV) maxV = v;
+  }
+
+  const range = Math.max(1, maxV - minV);
+  let sum = 0;
+  for (let j = 0; j < gray.length; j++) {
+    const stretched = ((gray[j] - minV) / range) * 255;
+    gray[j] = stretched;
+    sum += stretched;
+  }
+  const mean = sum / gray.length;
+  const thresh = mean * 0.86;
+
+  for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+    const v = gray[j] > thresh ? 255 : 0;
+    d[i] = d[i+1] = d[i+2] = v;
   }
   ctx.putImageData(img, 0, 0);
 }
@@ -534,24 +742,36 @@ function preprocess(canvas) {
 function normalize(s) {
   return s
     .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
-    .replace(/[，、]/g, ',');
+    .replace(/[，、]/g, ',')
+    .replace(/[Ｙ￥]/g, '¥');
 }
 
 function yenAmount(line) {
   const cleaned = line.replace(/,/g, '');
-  const m = cleaned.match(/[¥Y￥]\s*(\d+)/);
-  if (m) return m[1];
-  const nums = (cleaned.match(/\d+/g) || []).map(Number);
+
+  const yenMatches = [...cleaned.matchAll(/[¥Y]\s*(\d+)/g)];
+  if (yenMatches.length > 0) {
+    let max = 0;
+    for (const m of yenMatches) {
+      const n = parseInt(m[1], 10);
+      if (n > max) max = n;
+    }
+    return max.toString();
+  }
+
+  const nums = (cleaned.match(/\d+/g) || []).map(Number).filter(n => n >= 100);
   if (!nums.length) return '';
   return Math.max(...nums).toString();
 }
 
 function extractFields(text) {
-  const lines = normalize(text).split(/\r?\n/);
+  const allLines = normalize(text).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const lines = allLines.slice(0, 18);
+
   const result = { rcount: '', total: '', tax: '', net: '' };
 
   for (const line of lines) {
-    if (!result.rcount && /\d[\d,]*\s*枚/.test(line)) {
+    if (!result.rcount) {
       const m = line.replace(/,/g, '').match(/(\d+)\s*枚/);
       if (m) result.rcount = m[1];
     }
@@ -559,7 +779,7 @@ function extractFields(text) {
       const v = yenAmount(line);
       if (v) result.net = v;
     }
-    if (!result.tax && /消費|費税|消.{0,2}税/.test(line)) {
+    if (!result.tax && /(消費|費税)/.test(line)) {
       const v = yenAmount(line);
       if (v) result.tax = v;
     }
@@ -583,28 +803,71 @@ function fillFields(register, vals) {
   }
 }
 
+function getVal(r, k) {
+  const el = document.querySelector(`input[data-r="${r}"][data-k="${k}"]`);
+  return parseFloat(el.value) || 0;
+}
+
 function recalc() {
-  const get = (r, k) => {
-    const v = document.querySelector(`input[data-r="${r}"][data-k="${k}"]`).value;
-    return parseFloat(v) || 0;
-  };
   const sums = {
-    rcount: get(1,'rcount') + get(2,'rcount'),
-    total:  get(1,'total')  + get(2,'total'),
-    tax:    get(1,'tax')    + get(2,'tax'),
-    net:    get(1,'net')    + get(2,'net'),
+    rcount: getVal(1,'rcount') + getVal(2,'rcount'),
+    total:  getVal(1,'total')  + getVal(2,'total'),
+    tax:    getVal(1,'tax')    + getVal(2,'tax'),
+    net:    getVal(1,'net')    + getVal(2,'net'),
   };
   const yen = n => '¥' + Math.round(n).toLocaleString();
-  $('sumC').textContent  = sums.rcount.toLocaleString();
-  $('sumT').textContent  = yen(sums.total);
+  $('sumC').textContent   = sums.rcount.toLocaleString();
+  $('sumT').textContent   = yen(sums.total);
   $('sumTax').textContent = yen(sums.tax);
-  $('sumN').textContent  = yen(sums.net);
+  $('sumN').textContent   = yen(sums.net);
+}
+
+function validate() {
+  const messages = [];
+  for (const r of [1, 2]) {
+    const total = getVal(r, 'total');
+    const tax   = getVal(r, 'tax');
+    const net   = getVal(r, 'net');
+    const checkEl = $('check-' + r);
+
+    if (total === 0 && tax === 0 && net === 0) {
+      checkEl.hidden = true;
+      continue;
+    }
+    if (total === 0 || (tax === 0 && net === 0)) {
+      checkEl.hidden = true;
+      continue;
+    }
+
+    const diff = Math.abs(total - tax - net);
+    if (diff <= 5) {
+      checkEl.textContent = '✓ 検算OK';
+      checkEl.className = 'check ok';
+      checkEl.hidden = false;
+    } else {
+      checkEl.textContent = '⚠ 検算NG';
+      checkEl.className = 'check warn';
+      checkEl.hidden = false;
+      messages.push(
+        `${r}レジ: 純売上+消費税=${(net+tax).toLocaleString()} が 総売上=${total.toLocaleString()} と一致しません(差${diff.toLocaleString()})`
+      );
+    }
+  }
+
+  if (messages.length > 0) {
+    warningEl.innerHTML = messages.map(m => '⚠ ' + m).join('<br>') +
+      '<br><span style="font-weight:500;opacity:0.85">OCRの読み違いの可能性があります。数値をご確認ください。</span>';
+    warningEl.hidden = false;
+  } else {
+    warningEl.hidden = true;
+  }
 }
 
 document.querySelectorAll('input[type=number]').forEach(el => {
   el.addEventListener('input', () => {
     el.classList.remove('auto');
     recalc();
+    validate();
   });
 });
 
@@ -616,10 +879,175 @@ $('uploadBtn').addEventListener('click', () => $('fileInput').click());
 $('fileInput').addEventListener('change', e => {
   const f = e.target.files[0];
   if (f) captureFromFile(f);
+  e.target.value = '';
 });
 
+$('resetBtn').addEventListener('click', () => {
+  if (!confirm('すべての入力値をクリアします。よろしいですか？')) return;
+  document.querySelectorAll('input[type=number]').forEach(el => {
+    el.value = '';
+    el.classList.remove('auto');
+  });
+  recalc();
+  validate();
+  setStatus('構えてください');
+});
+
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch { return []; }
+}
+
+function saveHistory(arr) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+}
+
+function currentEntry() {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const hh = String(today.getHours()).padStart(2, '0');
+  const mi = String(today.getMinutes()).padStart(2, '0');
+  return {
+    id: Date.now().toString(),
+    date: `${yyyy}-${mm}-${dd}`,
+    time: `${hh}:${mi}`,
+    r1: { rcount: getVal(1,'rcount'), total: getVal(1,'total'), tax: getVal(1,'tax'), net: getVal(1,'net') },
+    r2: { rcount: getVal(2,'rcount'), total: getVal(2,'total'), tax: getVal(2,'tax'), net: getVal(2,'net') }
+  };
+}
+
+$('saveBtn').addEventListener('click', () => {
+  const entry = currentEntry();
+  const hasData =
+    entry.r1.total || entry.r1.net || entry.r1.rcount ||
+    entry.r2.total || entry.r2.net || entry.r2.rcount;
+  if (!hasData) {
+    toast('保存する値がありません');
+    return;
+  }
+  const hist = loadHistory();
+  hist.unshift(entry);
+  if (hist.length > 365) hist.length = 365;
+  saveHistory(hist);
+  toast('履歴に保存しました');
+});
+
+const historyModal = $('historyModal');
+
+function renderHistory() {
+  const list = $('historyList');
+  const hist = loadHistory();
+  if (hist.length === 0) {
+    list.innerHTML = '<div class="history-empty">まだ保存された履歴はありません</div>';
+    return;
+  }
+  list.innerHTML = '';
+  for (const entry of hist) {
+    const total = (entry.r1.total||0) + (entry.r2.total||0);
+    const net   = (entry.r1.net||0)   + (entry.r2.net||0);
+    const item = document.createElement('div');
+    item.className = 'history-item';
+    item.innerHTML = `
+      <div class="date">
+        ${entry.date} ${entry.time || ''}
+        <div class="sub">純売上 ¥${net.toLocaleString()}</div>
+      </div>
+      <div class="amount">¥${total.toLocaleString()}</div>
+      <button class="del" data-id="${entry.id}">削除</button>
+    `;
+    list.appendChild(item);
+  }
+  list.querySelectorAll('.del').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const id = e.currentTarget.dataset.id;
+      if (!confirm('この履歴を削除しますか？')) return;
+      const next = loadHistory().filter(x => x.id !== id);
+      saveHistory(next);
+      renderHistory();
+      toast('削除しました');
+    });
+  });
+}
+
+$('historyBtn').addEventListener('click', () => {
+  renderHistory();
+  historyModal.classList.add('on');
+});
+$('historyClose').addEventListener('click', () => historyModal.classList.remove('on'));
+historyModal.addEventListener('click', e => {
+  if (e.target === historyModal) historyModal.classList.remove('on');
+});
+
+$('clearHistoryBtn').addEventListener('click', () => {
+  if (!confirm('すべての履歴を削除します。元に戻せません。よろしいですか？')) return;
+  saveHistory([]);
+  renderHistory();
+  toast('履歴をすべて削除しました');
+});
+
+$('exportBtn').addEventListener('click', () => {
+  const hist = loadHistory();
+  if (hist.length === 0) {
+    toast('履歴がありません');
+    return;
+  }
+  const header = [
+    '日付','時刻',
+    '1レジ レシ数','1レジ 総売上','1レジ 消費税','1レジ 純売上',
+    '2レジ レシ数','2レジ 総売上','2レジ 消費税','2レジ 純売上',
+    '合計 レシ数','合計 総売上','合計 消費税','合計 純売上'
+  ];
+  const rows = [header];
+  const sorted = [...hist].sort((a,b) => (a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+  for (const e of sorted) {
+    const sumC = (e.r1.rcount||0) + (e.r2.rcount||0);
+    const sumT = (e.r1.total||0)  + (e.r2.total||0);
+    const sumTax = (e.r1.tax||0)  + (e.r2.tax||0);
+    const sumN = (e.r1.net||0)    + (e.r2.net||0);
+    rows.push([
+      e.date, e.time || '',
+      e.r1.rcount||0, e.r1.total||0, e.r1.tax||0, e.r1.net||0,
+      e.r2.rcount||0, e.r2.total||0, e.r2.tax||0, e.r2.net||0,
+      sumC, sumT, sumTax, sumN
+    ]);
+  }
+  const csv = '\uFEFF' + rows.map(r => r.map(cell => {
+    const s = String(cell);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const stamp = new Date().toISOString().slice(0,10).replace(/-/g,'');
+  a.download = `register-ocr-${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('CSVをダウンロードしました');
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+    if (stabilityTimer) { clearInterval(stabilityTimer); stabilityTimer = null; }
+  } else if (!document.hidden && !stream) {
+    startCamera();
+  }
+});
+
+getWorker();
 startCamera();
 recalc();
+validate();
 </script>
 
 </body>
