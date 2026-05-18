@@ -447,19 +447,13 @@ const loading = $('loading');
 const loadingMsg = $('loadingMsg');
 const warningEl = $('warning');
 const toastEl = $('toast');
+const captureBtn = $('captureBtn');
 
 let stream = null;
-let prevFrame = null;
-let stableCount = 0;
-let autoEnabled = true;
 let isProcessing = false;
-let stabilityTimer = null;
+let isFrozen = false;  // 撮影完了後、カメラ映像をフリーズ中か
 
-const STAB_THRESHOLD = 6;
-const STAB_FRAMES    = 8;
-const STAB_INTERVAL  = 150;
-const COOLDOWN_MS    = 4000;
-const STORAGE_KEY    = 'register-ocr-history-v1';
+const STORAGE_KEY = 'register-ocr-history-v1';
 
 function setStatus(text, cls) {
   statusEl.textContent = text;
@@ -477,6 +471,15 @@ function toast(msg) {
   toastEl.classList.add('on');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toastEl.classList.remove('on'), 2200);
+}
+
+/** 撮影ボタンの見た目を「撮影」/「再撮影」で切り替える */
+function setCaptureButtonMode(mode) {
+  if (mode === 'retake') {
+    captureBtn.innerHTML = '<span aria-hidden="true">🔄</span><span>再撮影</span>';
+  } else {
+    captureBtn.innerHTML = '<span aria-hidden="true">●</span><span>今すぐ撮影</span>';
+  }
 }
 
 let workerPromise = null;
@@ -507,7 +510,7 @@ async function startCamera() {
     video.srcObject = stream;
     await video.play();
     setStatus('構えてください');
-    startStabilityCheck();
+    isFrozen = false;
   } catch (e) {
     console.error(e);
     let msg = 'カメラを使えません。';
@@ -520,6 +523,29 @@ async function startCamera() {
   }
 }
 
+/** カメラ映像を止める(撮影した瞬間の画面が表示されたままになる) */
+function freezeCamera() {
+  video.pause();
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  isFrozen = true;
+}
+
+/** 再撮影 - カメラを再起動 */
+async function retakePhoto() {
+  // 入力欄をクリアして再撮影に備える
+  document.querySelectorAll('input[type=number]').forEach(el => {
+    el.value = '';
+    el.classList.remove('auto');
+  });
+  recalc();
+  validate();
+  setCaptureButtonMode('capture');
+  await startCamera();
+}
+
 function showCamFallback(msg) {
   setStatus('カメラ不可');
   const wrap = $('camwrap');
@@ -529,50 +555,9 @@ function showCamFallback(msg) {
   wrap.appendChild(fallback);
 }
 
-function startStabilityCheck() {
-  if (stabilityTimer) clearInterval(stabilityTimer);
-  stabilityTimer = setInterval(checkStability, STAB_INTERVAL);
-}
-
-function checkStability() {
-  if (!video.videoWidth || isProcessing || !autoEnabled) return;
-
-  const c = document.createElement('canvas');
-  c.width = 80; c.height = 60;
-  const ctx = c.getContext('2d');
-  ctx.drawImage(video, 0, 0, 80, 60);
-  const data = ctx.getImageData(0, 0, 80, 60).data;
-
-  if (prevFrame) {
-    let diff = 0, bright = 0, samples = 0;
-    for (let i = 0; i < data.length; i += 16) {
-      diff += Math.abs(data[i] - prevFrame[i]);
-      bright += (data[i] + data[i+1] + data[i+2]) / 3;
-      samples++;
-    }
-    diff /= samples;
-    bright /= samples;
-
-    if (diff < STAB_THRESHOLD && bright > 40 && bright < 245) {
-      stableCount++;
-      if (stableCount >= STAB_FRAMES) {
-        stableCount = 0;
-        captureFromVideo();
-      } else if (stableCount > STAB_FRAMES / 2) {
-        setStatus('そのまま…', 'scanning');
-      }
-    } else {
-      if (stableCount > 0) setStatus('構えてください');
-      stableCount = 0;
-    }
-  }
-  prevFrame = data;
-}
-
 async function captureFromVideo() {
   if (isProcessing || !video.videoWidth) return;
   isProcessing = true;
-  autoEnabled = false;
   setStatus('読み取り中', 'scanning');
   showLoading('画像を読み取り中…');
 
@@ -580,6 +565,10 @@ async function captureFromVideo() {
   c.width = video.videoWidth;
   c.height = video.videoHeight;
   c.getContext('2d').drawImage(video, 0, 0);
+
+  // 撮影が終わったらカメラをフリーズして「再撮影」モードに切り替え
+  freezeCamera();
+  setCaptureButtonMode('retake');
 
   try {
     await processCanvas(c);
@@ -592,7 +581,6 @@ async function captureFromVideo() {
   } finally {
     hideLoading();
     isProcessing = false;
-    setTimeout(() => { autoEnabled = true; stableCount = 0; }, COOLDOWN_MS);
   }
 }
 
@@ -601,6 +589,11 @@ async function captureFromFile(file) {
   isProcessing = true;
   showLoading('画像を読み取り中…');
   setStatus('読み取り中', 'scanning');
+
+  // ファイル選択時は、現在動いているカメラを止めて読み取った画像を表示する
+  freezeCamera();
+  setCaptureButtonMode('retake');
+
   try {
     const img = await loadImage(file);
     const c = document.createElement('canvas');
@@ -685,7 +678,6 @@ async function processCanvas(canvas) {
   preprocess(left);
   preprocess(right);
 
-  // 細い数字(特に「1」)の読み落とし対策で2倍に拡大
   if (left.width  < 1400) left  = upscale(left, 2);
   if (right.width < 1400) right = upscale(right, 2);
 
@@ -760,9 +752,6 @@ function normalize(s) {
     .replace(/[，、]/g, ',')
     .replace(/[Ｙ￥]/g, '¥');
 
-  // OCRはカンマをピリオド・スペース・アポストロフィに誤読することがある。
-  // 「1〜3桁 + 区切り + ちょうど3桁(さらに数字が続かない)」のパターンを
-  // すべてカンマに統一する。連鎖(1,234,567)に対応するため繰り返し適用。
   let prev;
   do {
     prev = result;
@@ -773,8 +762,6 @@ function normalize(s) {
 }
 
 function yenAmount(line) {
-  // ¥/Y のあとに続く「数字と区切り文字の連なり」を丸ごと拾う。
-  // 区切り文字: スペース・カンマ・ピリオド・アポストロフィ
   const matches = [...line.matchAll(/[¥Y]\s*((?:\d+[ .,'`\u2018\u2019]?)+\d*)/g)];
   if (matches.length > 0) {
     let max = 0;
@@ -788,7 +775,6 @@ function yenAmount(line) {
     if (max > 0) return max.toString();
   }
 
-  // フォールバック: ¥が無い場合は100以上の最大数値
   const cleaned = line.replace(/,/g, '');
   const nums = (cleaned.match(/\d+/g) || []).map(Number).filter(n => n >= 100);
   if (!nums.length) return '';
@@ -902,10 +888,20 @@ document.querySelectorAll('input[type=number]').forEach(el => {
   });
 });
 
-$('captureBtn').addEventListener('click', () => {
-  if (video.srcObject) captureFromVideo();
-  else $('fileInput').click();
+captureBtn.addEventListener('click', () => {
+  if (isProcessing) return;
+  if (isFrozen) {
+    // 再撮影モード: カメラ再起動
+    retakePhoto();
+  } else if (video.srcObject) {
+    // 撮影モード: 撮影実行
+    captureFromVideo();
+  } else {
+    // カメラが使えない場合はファイル選択にフォールバック
+    $('fileInput').click();
+  }
 });
+
 $('uploadBtn').addEventListener('click', () => $('fileInput').click());
 $('fileInput').addEventListener('change', e => {
   const f = e.target.files[0];
@@ -1066,11 +1062,14 @@ $('exportBtn').addEventListener('click', () => {
 });
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden && stream) {
-    stream.getTracks().forEach(t => t.stop());
-    stream = null;
-    if (stabilityTimer) { clearInterval(stabilityTimer); stabilityTimer = null; }
-  } else if (!document.hidden && !stream) {
+  if (document.hidden) {
+    // ページが隠れたらカメラを止める
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+  } else if (!document.hidden && !stream && !isFrozen) {
+    // ページに戻ってきて、撮影完了状態でなければカメラ再開
     startCamera();
   }
 });
@@ -1080,6 +1079,6 @@ startCamera();
 recalc();
 validate();
 </script>
-
+ 
 </body>
 </html>
