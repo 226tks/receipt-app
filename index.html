@@ -7,7 +7,6 @@
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   :root {
     --bg:        #ffffff;
     --surface-2: #f5f5f5;
@@ -21,14 +20,11 @@
     --ok-bg:     #ecfdf5;
     --ok-line:   #10b981;
     --ok:        #065f46;
-
     --sans: -apple-system, BlinkMacSystemFont, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic UI', 'Yu Gothic', system-ui, sans-serif;
     --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-
     --radius: 4px;
     --tap:    48px;
   }
-
   html { -webkit-text-size-adjust: 100%; }
   body {
     background: var(--bg);
@@ -40,7 +36,6 @@
     -webkit-tap-highlight-color: transparent;
     -webkit-font-smoothing: antialiased;
   }
-
   .topbar {
     padding: 14px 20px;
     border-bottom: 2px solid var(--ink);
@@ -60,7 +55,6 @@
   .status.scanning { background: var(--ink); color: #fff; animation: pulse 1.2s ease-in-out infinite; }
   .status.done     { background: var(--ink); color: #fff; }
   @keyframes pulse { 0%,100% {opacity:1;} 50% {opacity:0.6;} }
-
   .cam-wrap {
     position: relative; background: #000;
     aspect-ratio: 4 / 3; overflow: hidden;
@@ -75,7 +69,6 @@
   }
   .guides { position: absolute; inset: 0; pointer-events: none; }
   .guides svg { width: 100%; height: 100%; }
-
   .actions {
     padding: 16px 20px 8px;
     display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
@@ -98,12 +91,10 @@
   .btn.primary { background: var(--ink); color: #fff; }
   .btn.primary:active { background: #2a2a2a; }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
   .note {
     padding: 8px 20px 12px;
     color: var(--ink-2); font-size: 13px; line-height: 1.6;
   }
-
   .registers {
     padding: 0 20px 12px;
     display: grid; gap: 14px;
@@ -137,7 +128,6 @@
   .register h2 .check.ok   { background: var(--ok-bg);   color: var(--ok);   border: 1px solid var(--ok-line); }
   .register h2 .check.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
   .register h2 .check[hidden] { display: none; }
-
   .field {
     display: grid; grid-template-columns: 90px 1fr;
     align-items: center; gap: 12px;
@@ -165,7 +155,6 @@
     box-shadow: 0 0 0 3px rgba(0,0,0,0.08);
   }
   .field input.auto { background: var(--surface-2); border-color: var(--ink); }
-
   .warning {
     margin: 0 20px 16px;
     padding: 12px 14px;
@@ -176,7 +165,6 @@
     font-size: 13px; font-weight: 600; line-height: 1.5;
   }
   .warning[hidden] { display: none; }
-
   .sum {
     background: var(--ink); color: #fff;
     margin: 0 20px 16px;
@@ -204,7 +192,6 @@
   }
   .sum-row.highlight .label { color: #fff; font-size: 16px; font-weight: 700; }
   .sum-row.highlight .val { font-size: 28px; }
-
   .record-bar {
     padding: 0 20px 16px;
     display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
@@ -226,7 +213,6 @@
   .btn-text:focus-visible {
     outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 2px;
   }
-
   .modal {
     position: fixed; inset: 0;
     background: rgba(0,0,0,0.5);
@@ -293,7 +279,6 @@
     display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
     background: var(--surface-2);
   }
-
   .loading {
     position: fixed; inset: 0;
     background: rgba(255,255,255,0.92);
@@ -313,7 +298,6 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
   .loading-msg { font-size: 14px; font-weight: 600; color: var(--ink); }
-
   .toast {
     position: fixed;
     bottom: 24px; left: 50%;
@@ -332,21 +316,17 @@
     transform: translateX(-50%) translateY(0);
     opacity: 1;
   }
-
   input[type=file] { display: none; }
-
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   }
 </style>
 </head>
 <body>
-
 <header class="topbar">
   <h1>レジ締めOCR</h1>
   <div class="status" id="status" role="status" aria-live="polite">準備中</div>
 </header>
-
 <div class="cam-wrap" id="camwrap">
   <video id="video" autoplay playsinline muted aria-label="カメラ映像"></video>
   <div class="guides" aria-hidden="true">
@@ -358,7 +338,6 @@
     </svg>
   </div>
 </div>
-
 <div class="actions">
   <button class="btn primary" id="captureBtn" type="button">
     <span aria-hidden="true">●</span><span>今すぐ撮影</span>
@@ -368,9 +347,7 @@
   </button>
   <input type="file" id="fileInput" accept="image/*">
 </div>
-
 <p class="note">2枚のレシートを間に隙間を空けて並べ、枠に収まるよう撮影してください。読み取った値は各欄をタップして修正できます。</p>
-
 <section class="registers" aria-label="読み取り結果">
   <div class="register">
     <h2>
@@ -382,7 +359,6 @@
     <div class="field"><label for="r1-tax">消費税</label><input id="r1-tax"    type="number" inputmode="numeric" data-r="1" data-k="tax"></div>
     <div class="field"><label for="r1-net">純売上</label><input id="r1-net"    type="number" inputmode="numeric" data-r="1" data-k="net"></div>
   </div>
-
   <div class="register">
     <h2>
       <span class="num">2</span> 2レジ
@@ -394,9 +370,7 @@
     <div class="field"><label for="r2-net">純売上</label><input id="r2-net"    type="number" inputmode="numeric" data-r="2" data-k="net"></div>
   </div>
 </section>
-
 <div class="warning" id="warning" hidden role="alert"></div>
-
 <section class="sum" aria-label="合計">
   <h2>合計</h2>
   <div class="sum-row"><span class="label">レシ数</span><span class="val" id="sumC">0</span></div>
@@ -404,16 +378,13 @@
   <div class="sum-row"><span class="label">消費税</span><span class="val" id="sumTax">¥0</span></div>
   <div class="sum-row highlight"><span class="label">純売上合計</span><span class="val" id="sumN">¥0</span></div>
 </section>
-
 <div class="record-bar">
   <button class="btn primary" id="saveBtn" type="button">📝 履歴に保存</button>
   <button class="btn" id="historyBtn" type="button">📂 履歴を見る</button>
 </div>
-
 <div class="reset-bar">
   <button class="btn-text" id="resetBtn" type="button">すべての値をクリア</button>
 </div>
-
 <div class="modal" id="historyModal" role="dialog" aria-modal="true" aria-labelledby="history-title">
   <div class="modal-panel">
     <div class="modal-head">
@@ -427,19 +398,15 @@
     </div>
   </div>
 </div>
-
 <div class="loading" id="loading" role="alert" aria-live="assertive">
   <div class="loading-inner">
     <div class="spinner" aria-hidden="true"></div>
     <div class="loading-msg" id="loadingMsg">読み取り中</div>
   </div>
 </div>
-
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-
 <script>
 'use strict';
-
 const $ = id => document.getElementById(id);
 const video = $('video');
 const statusEl = $('status');
@@ -448,13 +415,10 @@ const loadingMsg = $('loadingMsg');
 const warningEl = $('warning');
 const toastEl = $('toast');
 const captureBtn = $('captureBtn');
-
 let stream = null;
 let isProcessing = false;
 let isFrozen = false;  // 撮影完了後、カメラ映像をフリーズ中か
-
 const STORAGE_KEY = 'register-ocr-history-v1';
-
 function setStatus(text, cls) {
   statusEl.textContent = text;
   statusEl.className = 'status' + (cls ? ' ' + cls : '');
@@ -464,7 +428,6 @@ function showLoading(msg) {
   loading.classList.add('on');
 }
 function hideLoading() { loading.classList.remove('on'); }
-
 let toastTimer = null;
 function toast(msg) {
   toastEl.textContent = msg;
@@ -472,7 +435,6 @@ function toast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toastEl.classList.remove('on'), 2200);
 }
-
 /** 撮影ボタンの見た目を「撮影」/「再撮影」で切り替える */
 function setCaptureButtonMode(mode) {
   if (mode === 'retake') {
@@ -481,18 +443,22 @@ function setCaptureButtonMode(mode) {
     captureBtn.innerHTML = '<span aria-hidden="true">●</span><span>今すぐ撮影</span>';
   }
 }
-
 let workerPromise = null;
 function getWorker() {
   if (!workerPromise) {
     workerPromise = (async () => {
       const w = await Tesseract.createWorker(['jpn', 'eng']);
+      // レジ集計欄は「一様な1ブロックのテキスト」。PSM 6 を指定すると
+      // 疎なレシートでの誤った領域分割が減り、数字の読み取りが安定する。
+      await w.setParameters({
+        tessedit_pageseg_mode: '6',        // PSM 6: single uniform block
+        preserve_interword_spaces: '1'     // 桁区切りの空白を保持
+      });
       return w;
     })();
   }
   return workerPromise;
 }
-
 async function startCamera() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     showCamFallback('お使いのブラウザではカメラが使えません。画像アップロードをご利用ください。');
@@ -522,7 +488,6 @@ async function startCamera() {
     showCamFallback(msg);
   }
 }
-
 /** カメラ映像を止める(撮影した瞬間の画面が表示されたままになる) */
 function freezeCamera() {
   video.pause();
@@ -532,7 +497,6 @@ function freezeCamera() {
   }
   isFrozen = true;
 }
-
 /** 再撮影 - カメラを再起動 */
 async function retakePhoto() {
   // 入力欄をクリアして再撮影に備える
@@ -545,7 +509,6 @@ async function retakePhoto() {
   setCaptureButtonMode('capture');
   await startCamera();
 }
-
 function showCamFallback(msg) {
   setStatus('カメラ不可');
   const wrap = $('camwrap');
@@ -554,22 +517,18 @@ function showCamFallback(msg) {
   fallback.textContent = msg;
   wrap.appendChild(fallback);
 }
-
 async function captureFromVideo() {
   if (isProcessing || !video.videoWidth) return;
   isProcessing = true;
   setStatus('読み取り中', 'scanning');
   showLoading('画像を読み取り中…');
-
   const c = document.createElement('canvas');
   c.width = video.videoWidth;
   c.height = video.videoHeight;
   c.getContext('2d').drawImage(video, 0, 0);
-
   // 撮影が終わったらカメラをフリーズして「再撮影」モードに切り替え
   freezeCamera();
   setCaptureButtonMode('retake');
-
   try {
     await processCanvas(c);
     setStatus('完了 / 修正可', 'done');
@@ -583,17 +542,14 @@ async function captureFromVideo() {
     isProcessing = false;
   }
 }
-
 async function captureFromFile(file) {
   if (isProcessing) return;
   isProcessing = true;
   showLoading('画像を読み取り中…');
   setStatus('読み取り中', 'scanning');
-
   // ファイル選択時は、現在動いているカメラを止めて読み取った画像を表示する
   freezeCamera();
   setCaptureButtonMode('retake');
-
   try {
     const img = await loadImage(file);
     const c = document.createElement('canvas');
@@ -611,7 +567,6 @@ async function captureFromFile(file) {
     isProcessing = false;
   }
 }
-
 function loadImage(file) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -625,13 +580,11 @@ function loadImage(file) {
     r.readAsDataURL(file);
   });
 }
-
 function findReceiptGap(canvas) {
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
   const img = ctx.getImageData(0, 0, w, h);
   const d = img.data;
-
   const DARK = 110;
   const colDark = new Array(w).fill(0);
   for (let y = 0; y < h; y += 3) {
@@ -641,7 +594,6 @@ function findReceiptGap(canvas) {
       if (v < DARK) colDark[x]++;
     }
   }
-
   const window = Math.max(10, Math.floor(w / 50));
   const smoothed = new Array(w);
   for (let x = 0; x < w; x++) {
@@ -651,118 +603,138 @@ function findReceiptGap(canvas) {
     }
     smoothed[x] = sum / cnt;
   }
-
   const start = Math.floor(w * 0.30);
   const end   = Math.floor(w * 0.70);
   let minDark = Infinity, minX = Math.floor(w / 2);
   for (let x = start; x < end; x++) {
     if (smoothed[x] < minDark) { minDark = smoothed[x]; minX = x; }
   }
-
   let avgDark = 0;
   for (let x = start; x < end; x++) avgDark += smoothed[x];
   avgDark /= (end - start);
-
   if (avgDark > 1 && minDark < avgDark * 0.4) return minX;
   return Math.floor(w / 2);
 }
-
 async function processCanvas(canvas) {
   const w = canvas.width, h = canvas.height;
   const gapX = findReceiptGap(canvas);
   console.log('Gap detected at x =', gapX, '/', w);
-
-  let left  = sliceCanvas(canvas, 0,    0, gapX,     h);
-  let right = sliceCanvas(canvas, gapX, 0, w - gapX, h);
-
-  preprocess(left);
-  preprocess(right);
-
-  if (left.width  < 1400) left  = upscale(left, 2);
-  if (right.width < 1400) right = upscale(right, 2);
-
-  const worker = await getWorker();
+  const left  = sliceCanvas(canvas, 0,    0, gapX,     h);
+  const right = sliceCanvas(canvas, gapX, 0, w - gapX, h);
 
   loadingMsg.textContent = '1レジを読み取り中…';
-  const r1 = await worker.recognize(left);
+  const f1 = await ocrReceipt(left);
   loadingMsg.textContent = '2レジを読み取り中…';
-  const r2 = await worker.recognize(right);
+  const f2 = await ocrReceipt(right);
 
-  console.log('--- LEFT ---\n' + r1.data.text);
-  console.log('--- RIGHT ---\n' + r2.data.text);
-
-  fillFields(1, extractFields(r1.data.text));
-  fillFields(2, extractFields(r2.data.text));
+  fillFields(1, f1);
+  fillFields(2, f2);
   recalc();
   validate();
 }
-
+/**
+ * 各レシートを読み取る。必要な項目(総売上・純売上・消費税)は
+ * レシート最上部の[売上内訳]欄に集中しているため、まず上部だけを
+ * 高速に読み取る。取りこぼしがあればレシート全体で読み直す。
+ * → 通常は処理面積が小さく高速、かつ下部の明細による誤検出も避けられる。
+ */
+async function ocrReceipt(slice) {
+  const top = sliceCanvas(slice, 0, 0, slice.width, Math.floor(slice.height * 0.62));
+  let fields = await ocrOne(top);
+  const enough = fields.total && (fields.net || fields.tax);
+  if (!enough) {
+    console.log('上部パスで不足 → 全体で読み直し');
+    fields = await ocrOne(slice);
+  }
+  return fields;
+}
+async function ocrOne(srcCanvas) {
+  let c = srcCanvas;
+  // 先に拡大 → その後に二値化する(順序が逆だと文字の輪郭がギザギザになり精度が落ちる)
+  if (c.width < 1500) {
+    const factor = Math.min(3, Math.max(1.2, 1500 / c.width));
+    c = upscale(c, factor);
+  }
+  adaptiveBinarize(c);
+  const worker = await getWorker();
+  const r = await worker.recognize(c);
+  console.log('--- OCR ---\n' + r.data.text);
+  return extractFields(r.data.text);
+}
 function sliceCanvas(src, sx, sy, sw, sh) {
   const c = document.createElement('canvas');
   c.width = sw; c.height = sh;
   c.getContext('2d').drawImage(src, sx, sy, sw, sh, 0, 0, sw, sh);
   return c;
 }
-
 function upscale(canvas, factor) {
   const out = document.createElement('canvas');
-  out.width = canvas.width * factor;
-  out.height = canvas.height * factor;
+  out.width = Math.round(canvas.width * factor);
+  out.height = Math.round(canvas.height * factor);
   const ctx = out.getContext('2d');
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(canvas, 0, 0, out.width, out.height);
   return out;
 }
-
-function preprocess(canvas) {
+/**
+ * Bradley 適応的二値化。
+ * 各画素の閾値を「その周辺の局所平均」から決めるため、感熱紙にありがちな
+ * 照明ムラ・影・左右の濃淡差に強い。積分画像を使うので O(W×H) で高速。
+ * (従来のグローバル閾値 mean*0.86 の置き換え)
+ */
+function adaptiveBinarize(canvas) {
   const ctx = canvas.getContext('2d');
-  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const W = canvas.width, H = canvas.height;
+  const img = ctx.getImageData(0, 0, W, H);
   const d = img.data;
-
-  const gray = new Float32Array(d.length / 4);
-  let minV = 255, maxV = 0;
+  const gray = new Float64Array(W * H);
   for (let i = 0, j = 0; i < d.length; i += 4, j++) {
-    const v = (d[i] + d[i+1] + d[i+2]) / 3;
-    gray[j] = v;
-    if (v < minV) minV = v;
-    if (v > maxV) maxV = v;
+    gray[j] = (d[i] + d[i+1] + d[i+2]) / 3;
   }
-
-  const range = Math.max(1, maxV - minV);
-  let sum = 0;
-  for (let j = 0; j < gray.length; j++) {
-    const stretched = ((gray[j] - minV) / range) * 255;
-    gray[j] = stretched;
-    sum += stretched;
+  // 積分画像(左上からの累積和)
+  const integral = new Float64Array(W * H);
+  for (let y = 0; y < H; y++) {
+    let rowSum = 0;
+    for (let x = 0; x < W; x++) {
+      rowSum += gray[y*W + x];
+      integral[y*W + x] = (y > 0 ? integral[(y-1)*W + x] : 0) + rowSum;
+    }
   }
-  const mean = sum / gray.length;
-  const thresh = mean * 0.86;
-
-  for (let i = 0, j = 0; i < d.length; i += 4, j++) {
-    const v = gray[j] > thresh ? 255 : 0;
-    d[i] = d[i+1] = d[i+2] = v;
+  const half = Math.max(10, Math.floor(W / 16)); // 局所窓の半径
+  const k = 0.15;                                 // 平均より15%暗ければ文字
+  for (let y = 0; y < H; y++) {
+    const y1 = Math.max(0, y - half), y2 = Math.min(H - 1, y + half);
+    for (let x = 0; x < W; x++) {
+      const x1 = Math.max(0, x - half), x2 = Math.min(W - 1, x + half);
+      const count = (x2 - x1 + 1) * (y2 - y1 + 1);
+      const A = (x1 > 0 && y1 > 0) ? integral[(y1-1)*W + (x1-1)] : 0;
+      const B = (y1 > 0) ? integral[(y1-1)*W + x2] : 0;
+      const C = (x1 > 0) ? integral[y2*W + (x1-1)] : 0;
+      const D = integral[y2*W + x2];
+      const sum = D - B - C + A;
+      const j = y*W + x;
+      const v = (gray[j] * count <= sum * (1 - k)) ? 0 : 255;
+      const i = j * 4;
+      d[i] = d[i+1] = d[i+2] = v;
+    }
   }
   ctx.putImageData(img, 0, 0);
 }
-
 function normalize(s) {
   let result = s
     .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
     .replace(/[，、]/g, ',')
     .replace(/[Ｙ￥]/g, '¥');
-
   let prev;
   do {
     prev = result;
-    result = result.replace(/(\d{1,3})[\s.,'`\u2018\u2019](\d{3})(?!\d)/g, '$1,$2');
+    result = result.replace(/(\d{1,3})[\s.,'`‘’](\d{3})(?!\d)/g, '$1,$2');
   } while (result !== prev);
-
   return result;
 }
-
 function yenAmount(line) {
-  const matches = [...line.matchAll(/[¥Y]\s*((?:\d+[ .,'`\u2018\u2019]?)+\d*)/g)];
+  const matches = [...line.matchAll(/[¥Y]\s*((?:\d+[ .,'`‘’]?)+\d*)/g)];
   if (matches.length > 0) {
     let max = 0;
     for (const m of matches) {
@@ -774,19 +746,15 @@ function yenAmount(line) {
     }
     if (max > 0) return max.toString();
   }
-
   const cleaned = line.replace(/,/g, '');
   const nums = (cleaned.match(/\d+/g) || []).map(Number).filter(n => n >= 100);
   if (!nums.length) return '';
   return Math.max(...nums).toString();
 }
-
 function extractFields(text) {
   const allLines = normalize(text).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   const lines = allLines.slice(0, 18);
-
   const result = { rcount: '', total: '', tax: '', net: '' };
-
   for (const line of lines) {
     if (!result.rcount) {
       const m = line.replace(/,/g, '').match(/(\d+)\s*枚/);
@@ -805,10 +773,8 @@ function extractFields(text) {
       if (v) result.total = v;
     }
   }
-
   return result;
 }
-
 function fillFields(register, vals) {
   for (const key of ['rcount', 'total', 'tax', 'net']) {
     const el = document.querySelector(`input[data-r="${register}"][data-k="${key}"]`);
@@ -819,12 +785,10 @@ function fillFields(register, vals) {
     }
   }
 }
-
 function getVal(r, k) {
   const el = document.querySelector(`input[data-r="${r}"][data-k="${k}"]`);
   return parseFloat(el.value) || 0;
 }
-
 function recalc() {
   const sums = {
     rcount: getVal(1,'rcount') + getVal(2,'rcount'),
@@ -838,7 +802,6 @@ function recalc() {
   $('sumTax').textContent = yen(sums.tax);
   $('sumN').textContent   = yen(sums.net);
 }
-
 function validate() {
   const messages = [];
   for (const r of [1, 2]) {
@@ -846,7 +809,6 @@ function validate() {
     const tax   = getVal(r, 'tax');
     const net   = getVal(r, 'net');
     const checkEl = $('check-' + r);
-
     if (total === 0 && tax === 0 && net === 0) {
       checkEl.hidden = true;
       continue;
@@ -855,7 +817,6 @@ function validate() {
       checkEl.hidden = true;
       continue;
     }
-
     const diff = Math.abs(total - tax - net);
     if (diff <= 5) {
       checkEl.textContent = '✓ 検算OK';
@@ -870,7 +831,6 @@ function validate() {
       );
     }
   }
-
   if (messages.length > 0) {
     warningEl.innerHTML = messages.map(m => '⚠ ' + m).join('<br>') +
       '<br><span style="font-weight:500;opacity:0.85">OCRの読み違いの可能性があります。数値をご確認ください。</span>';
@@ -879,7 +839,6 @@ function validate() {
     warningEl.hidden = true;
   }
 }
-
 document.querySelectorAll('input[type=number]').forEach(el => {
   el.addEventListener('input', () => {
     el.classList.remove('auto');
@@ -887,7 +846,6 @@ document.querySelectorAll('input[type=number]').forEach(el => {
     validate();
   });
 });
-
 captureBtn.addEventListener('click', () => {
   if (isProcessing) return;
   if (isFrozen) {
@@ -901,14 +859,12 @@ captureBtn.addEventListener('click', () => {
     $('fileInput').click();
   }
 });
-
 $('uploadBtn').addEventListener('click', () => $('fileInput').click());
 $('fileInput').addEventListener('change', e => {
   const f = e.target.files[0];
   if (f) captureFromFile(f);
   e.target.value = '';
 });
-
 $('resetBtn').addEventListener('click', () => {
   if (!confirm('すべての入力値をクリアします。よろしいですか？')) return;
   document.querySelectorAll('input[type=number]').forEach(el => {
@@ -919,7 +875,6 @@ $('resetBtn').addEventListener('click', () => {
   validate();
   setStatus('構えてください');
 });
-
 function loadHistory() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -928,11 +883,9 @@ function loadHistory() {
     return Array.isArray(arr) ? arr : [];
   } catch { return []; }
 }
-
 function saveHistory(arr) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
 }
-
 function currentEntry() {
   const today = new Date();
   const yyyy = today.getFullYear();
@@ -948,7 +901,6 @@ function currentEntry() {
     r2: { rcount: getVal(2,'rcount'), total: getVal(2,'total'), tax: getVal(2,'tax'), net: getVal(2,'net') }
   };
 }
-
 $('saveBtn').addEventListener('click', () => {
   const entry = currentEntry();
   const hasData =
@@ -964,9 +916,7 @@ $('saveBtn').addEventListener('click', () => {
   saveHistory(hist);
   toast('履歴に保存しました');
 });
-
 const historyModal = $('historyModal');
-
 function renderHistory() {
   const list = $('historyList');
   const hist = loadHistory();
@@ -1001,7 +951,6 @@ function renderHistory() {
     });
   });
 }
-
 $('historyBtn').addEventListener('click', () => {
   renderHistory();
   historyModal.classList.add('on');
@@ -1010,14 +959,12 @@ $('historyClose').addEventListener('click', () => historyModal.classList.remove(
 historyModal.addEventListener('click', e => {
   if (e.target === historyModal) historyModal.classList.remove('on');
 });
-
 $('clearHistoryBtn').addEventListener('click', () => {
   if (!confirm('すべての履歴を削除します。元に戻せません。よろしいですか？')) return;
   saveHistory([]);
   renderHistory();
   toast('履歴をすべて削除しました');
 });
-
 $('exportBtn').addEventListener('click', () => {
   const hist = loadHistory();
   if (hist.length === 0) {
@@ -1044,7 +991,7 @@ $('exportBtn').addEventListener('click', () => {
       sumC, sumT, sumTax, sumN
     ]);
   }
-  const csv = '\uFEFF' + rows.map(r => r.map(cell => {
+  const csv = '﻿' + rows.map(r => r.map(cell => {
     const s = String(cell);
     return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }).join(',')).join('\r\n');
@@ -1060,7 +1007,6 @@ $('exportBtn').addEventListener('click', () => {
   URL.revokeObjectURL(url);
   toast('CSVをダウンロードしました');
 });
-
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     // ページが隠れたらカメラを止める
@@ -1073,12 +1019,10 @@ document.addEventListener('visibilitychange', () => {
     startCamera();
   }
 });
-
 getWorker();
 startCamera();
 recalc();
 validate();
 </script>
- 
 </body>
 </html>
