@@ -751,13 +751,48 @@ function yenAmount(line) {
   if (!nums.length) return '';
   return Math.max(...nums).toString();
 }
+// 上部の集計行から、読み取れた金額(整数)をすべて集める。
+// 数字は漢字より正確に読めるので、これが後段の逆算の材料になる。
+function harvestAmounts(lines) {
+  const out = [];
+  for (const line of lines.slice(0, 10)) {
+    const groups = line.match(/\d[\d,]*/g) || [];
+    for (const g of groups) {
+      const n = parseInt(g.replace(/\D/g, ''), 10);
+      if (n >= 100) out.push(n);
+    }
+  }
+  return out;
+}
+// 「総売上 = 純売上 + 消費税」かつ「消費税は総売上の約5〜12%(=消費税率)」
+// という関係を満たす3数を、実際に読めた数字の中から探す。
+// これで漢字ラベルが読めなくても total/net/tax を復元できる。
+function reconcile(amounts) {
+  const uniq = [...new Set(amounts)].sort((a, b) => b - a);
+  const has = t => uniq.some(n => Math.abs(n - t) <= 2);
+  let best = null;
+  for (const total of uniq) {
+    if (total < 1000) continue;
+    for (const net of uniq) {
+      if (net >= total || net < total * 0.80) continue;
+      const tax = total - net;
+      const ratio = tax / total;
+      if (ratio < 0.05 || ratio > 0.12) continue;
+      if (!has(tax)) continue;                 // 消費税も実際に読めた数字であること
+      if (!best || total > best.total) best = { total, net, tax };
+    }
+  }
+  return best ? { total: String(best.total), net: String(best.net), tax: String(best.tax) } : null;
+}
+function toInt(v) { return parseInt(String(v).replace(/\D/g, ''), 10) || 0; }
 function extractFields(text) {
   const allLines = normalize(text).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   const lines = allLines.slice(0, 18);
   const result = { rcount: '', total: '', tax: '', net: '' };
   for (const line of lines) {
     if (!result.rcount) {
-      const m = line.replace(/,/g, '').match(/(\d+)\s*枚/);
+      // 枚 とその代表的な誤読(牧/校/権)も許容
+      const m = line.replace(/,/g, '').match(/(\d+)\s*[枚牧校権]/);
       if (m) result.rcount = m[1];
     }
     if (!result.net && /純/.test(line)) {
@@ -772,6 +807,27 @@ function extractFields(text) {
       const v = yenAmount(line);
       if (v) result.total = v;
     }
+  }
+  // レシ数フォールバック: 枚 が読めなかったとき、レシ行の「点数でない側」を採用
+  if (!result.rcount) {
+    for (const line of lines) {
+      if (/レシ|レン/.test(line)) {
+        const noYen = line.replace(/[¥Y]\s*[\d,]+/g, ' '); // 単価(¥)を除外
+        const m = noYen.replace(/,/g, '').match(/\b(\d{1,4})\b/);
+        if (m) { result.rcount = m[1]; break; }
+      }
+    }
+  }
+  // 数字ベースの復元: 漢字ラベルの読み違いで欠けた/誤った金額を補正する。
+  // ラベル由来の3項目がそろって検算も合う場合はそちらを信頼し、
+  // そうでなければ検算が必ず合う復元結果で上書きする。
+  const rec = reconcile(harvestAmounts(lines));
+  const labelConsistent = result.total && result.net && result.tax &&
+    Math.abs(toInt(result.total) - toInt(result.tax) - toInt(result.net)) <= 5;
+  if (rec && !labelConsistent) {
+    result.total = rec.total;
+    result.net = rec.net;
+    result.tax = rec.tax;
   }
   return result;
 }
@@ -1026,3 +1082,4 @@ validate();
 </script>
 </body>
 </html>
+
