@@ -354,29 +354,29 @@
       <span class="num">1</span> 1レジ
       <span class="check" id="check-1" hidden></span>
     </h2>
-    <div class="field"><label for="r1-rcount">レシ数</label><input id="r1-rcount" type="number" inputmode="numeric" data-r="1" data-k="rcount"></div>
-    <div class="field"><label for="r1-total">総売上</label><input id="r1-total"  type="number" inputmode="numeric" data-r="1" data-k="total"></div>
-    <div class="field"><label for="r1-tax">消費税</label><input id="r1-tax"    type="number" inputmode="numeric" data-r="1" data-k="tax"></div>
     <div class="field"><label for="r1-net">純売上</label><input id="r1-net"    type="number" inputmode="numeric" data-r="1" data-k="net"></div>
+    <div class="field"><label for="r1-tax">消費税</label><input id="r1-tax"    type="number" inputmode="numeric" data-r="1" data-k="tax"></div>
+    <div class="field"><label for="r1-total">総売上</label><input id="r1-total"  type="number" inputmode="numeric" data-r="1" data-k="total"></div>
+    <div class="field"><label for="r1-rcount">レシ数</label><input id="r1-rcount" type="number" inputmode="numeric" data-r="1" data-k="rcount"></div>
   </div>
   <div class="register">
     <h2>
       <span class="num">2</span> 2レジ
       <span class="check" id="check-2" hidden></span>
     </h2>
-    <div class="field"><label for="r2-rcount">レシ数</label><input id="r2-rcount" type="number" inputmode="numeric" data-r="2" data-k="rcount"></div>
-    <div class="field"><label for="r2-total">総売上</label><input id="r2-total"  type="number" inputmode="numeric" data-r="2" data-k="total"></div>
-    <div class="field"><label for="r2-tax">消費税</label><input id="r2-tax"    type="number" inputmode="numeric" data-r="2" data-k="tax"></div>
     <div class="field"><label for="r2-net">純売上</label><input id="r2-net"    type="number" inputmode="numeric" data-r="2" data-k="net"></div>
+    <div class="field"><label for="r2-tax">消費税</label><input id="r2-tax"    type="number" inputmode="numeric" data-r="2" data-k="tax"></div>
+    <div class="field"><label for="r2-total">総売上</label><input id="r2-total"  type="number" inputmode="numeric" data-r="2" data-k="total"></div>
+    <div class="field"><label for="r2-rcount">レシ数</label><input id="r2-rcount" type="number" inputmode="numeric" data-r="2" data-k="rcount"></div>
   </div>
 </section>
 <div class="warning" id="warning" hidden role="alert"></div>
 <section class="sum" aria-label="合計">
   <h2>合計</h2>
-  <div class="sum-row"><span class="label">レシ数</span><span class="val" id="sumC">0</span></div>
+  <div class="sum-row"><span class="label">客数</span><span class="val" id="sumC">0</span></div>
   <div class="sum-row"><span class="label">総売上</span><span class="val" id="sumT">¥0</span></div>
   <div class="sum-row"><span class="label">消費税</span><span class="val" id="sumTax">¥0</span></div>
-  <div class="sum-row highlight"><span class="label">純売上合計</span><span class="val" id="sumN">¥0</span></div>
+  <div class="sum-row highlight"><span class="label">純売上</span><span class="val" id="sumN">¥0</span></div>
 </section>
 <div class="record-bar">
   <button class="btn primary" id="saveBtn" type="button">📝 履歴に保存</button>
@@ -1076,6 +1076,13 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 getWorker();
+startCamera();
+recalc();
+validate();
+</script>
+</body>
+</html>
+
 startCamera();
 recalc();
 validate();
